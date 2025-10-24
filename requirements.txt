@@ -1,0 +1,14 @@
+flask
+python-dotenv
+geopy
+requests
+langchain
+langchain-core
+langchain-community
+langchain-pinecone==0.1.1 # Keep this specific version as a guide
+langchain-google-genai
+langchain-huggingface
+pinecone-client # Let pip choose the compatible version
+sentence-transformers
+pypdf
+langchain-text-splitters
