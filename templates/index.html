@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical AI Chatbot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container">
+        <h1 class="title"><i class="fas fa-stethoscope"></i> MedBot - Your Medical Assistant</h1>
+        <div id="chatbox" class="chatbox">
+            <div class="bot-message">Hello! I'm MedBot. Ask me any medical question, or if you need a doctor, I can try to find one for you.</div>
+        </div>
+
+        <form id="chat-form" class="input-form">
+            <input type="text" id="user-input" placeholder="Type your question..." autocomplete="off" required>
+            <button type="submit" id="send-button">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById("chat-form");
+        const userInput = document.getElementById("user-input");
+        const chatbox = document.getElementById("chatbox");
+        const sendButton = document.getElementById("send-button");
+
+        let userLocation = null;
+
+        // --- NEW: Ask for location on page load ---
+        window.onload = () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                        console.log("Location acquired:", userLocation);
+                    },
+                    (error) => {
+                        console.warn("User denied location access.", error.message);
+                        addBotMessage("To find doctors, you'll need to allow location access in your browser settings.");
+                    }
+                );
+            } else {
+                console.error("Geolocation is not supported by this browser.");
+                addBotMessage("Your browser doesn't support geolocation, so I can't find nearby doctors.");
+            }
+        };
+
+        function addBotMessage(message) {
+            chatbox.innerHTML += `<div class="bot-message">${message}</div>`;
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const userMsg = userInput.value;
+            if (!userMsg.trim()) return;
+
+            chatbox.innerHTML += `<div class="user-message">${userMsg}</div>`;
+            userInput.value = "";
+            chatbox.scrollTop = chatbox.scrollHeight;
+            
+            // Show loading spinner
+            const loadingDiv = document.createElement("div");
+            loadingDiv.className = "bot-message";
+            loadingDiv.innerHTML = `<div classclass="spinner-container"><div class="spinner"></div></div>`;
+            chatbox.appendChild(loadingDiv);
+            chatbox.scrollTop = chatbox.scrollHeight;
+            
+            sendButton.disabled = true;
+            
+            const payload = {
+                msg: userMsg,
+                location: userLocation // Send location with every request
+            };
+
+            try {
+                const res = await fetch("/get", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                // --- THIS IS THE FIX for {"response":...} ---
+                const data = await res.json();
+                loadingDiv.innerHTML = data.response; // Replace spinner with response
+
+            } catch (error) {
+                console.error("Fetch error:", error);
+                loadingDiv.innerHTML = "Sorry, I'm having a connection issue. Please try again.";
+            }
+            
+            sendButton.disabled = false;
+            chatbox.scrollTop = chatbox.scrollHeight;
+        };
+    </script>
+</body>
+</html>

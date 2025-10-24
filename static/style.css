@@ -1,0 +1,163 @@
+/* This file contains the CSS for the Medical AI Chatbot,
+including styles for the new doctor recommendation feature.
+*/
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f1f5f9;
+    color: #1e293b;
+    margin: 0;
+}
+
+.chat-container {
+    max-width: 700px;
+    margin: 50px auto;
+    background-color: #ffffff;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 10;
+}
+
+.title {
+    text-align: center;
+    font-size: 1.75rem; /* Slightly smaller */
+    font-weight: 700;
+    color: #2563eb;
+    margin-bottom: 1.5rem;
+}
+
+.chatbox {
+    height: 500px;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: #f3f4f6;
+    border-radius: 0.75rem;
+    border: 1px solid #d1d5db;
+    scroll-behavior: smooth;
+}
+
+.user-message, .bot-message {
+    margin: 0.75rem 0;
+    padding: 0.75rem 1.25rem; /* Adjusted padding */
+    border-radius: 1.5rem;
+    max-width: 85%;
+    line-height: 1.6;
+    word-wrap: break-word;
+    font-size: 1rem; /* Standardized font size */
+}
+
+.user-message {
+    background-color: #2563eb;
+    color: #ffffff;
+    margin-left: auto;
+    text-align: left; /* Keep text left-aligned */
+    border-bottom-right-radius: 5px;
+}
+
+.bot-message {
+    background-color: #dbeafe;
+    color: #1e40af;
+    margin-right: auto;
+    text-align: left;
+    border-bottom-left-radius: 5px;
+}
+
+.input-form {
+    display: flex;
+    margin-top: 1.25rem;
+}
+
+.input-form input {
+    flex: 1;
+    padding: 1rem;
+    border-radius: 9999px;
+    border: 1px solid #94a3b8;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease-in-out;
+}
+
+.input-form input:focus {
+    border-color: #3b82f6;
+}
+
+.input-form button {
+    background-color: #2563eb;
+    color: #ffffff;
+    width: 50px; /* Fixed width */
+    height: 50px; /* Fixed height */
+    margin-left: 0.75rem;
+    border: none;
+    border-radius: 50%; /* Make it a circle */
+    font-size: 1.125rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.input-form button:hover {
+    background-color: #1d4ed8;
+    transform: scale(1.05);
+}
+
+.input-form button:disabled {
+    background-color: #94a3b8;
+    cursor: not-allowed;
+}
+
+/* Spinner and Doctor Recommendation Styles */
+.spinner-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px; /* Match spinner height */
+}
+
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 4px solid #3b82f6;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.doctor-card {
+    padding: 1rem;
+    background-color: #f3f4f6;
+    border-radius: 0.5rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+    margin-top: 0.5rem;
+    border-left: 4px solid #3b82f6;
+}
+
+.doctor-card strong {
+    color: #1e40af;
+}
+
+.map-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background-color: #3b82f6;
+    color: #ffffff !important; /* Force color */
+    text-decoration: none; /* Remove underline */
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+
+.map-link:hover {
+    background-color: #2563eb;
+}
