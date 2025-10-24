@@ -1,10 +1,3 @@
-Okay, this is a crucial step for GitHub\! I will create a professional, impressive `README.md` file for your "AI-Powered Medical Chatbot with Doctor Recommendation" project. It will highlight the problem, solution, features, tech stack, and impact, making it very appealing to recruiters.
-
-I will incorporate all the details from our conversation, including the project's purpose, key AI and API integrations, and the specific Python libraries used.
-
------
-
-````markdown
 # MedBot: AI-Powered Medical Chatbot with Doctor Recommendation ⚕️
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -151,5 +144,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 [ Swapnil Panda/LinkedIn Profile Link: www.linkedin.com/in/swapnil-panda-1207992ba ]
 
----
-````
+
