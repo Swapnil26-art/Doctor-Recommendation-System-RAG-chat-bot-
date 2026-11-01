@@ -52,7 +52,7 @@ Browser (templates/index.html)
                          │                 ├── Pinecone search(inputs={"text": q})
                          │                 │     └── llama-text-embed-v2 (server-side)
                          │                 ├── relevance floor + page citations
-                         │                 └── Gemini 2.5 Flash
+                         │                 └── Gemini 3.8 Flash
                          └── JSON: { type: "text" | "places", ... }
 ```
 
@@ -73,7 +73,7 @@ no model download.
 | Layer | Choice |
 | --- | --- |
 | Backend | Flask 3.1 |
-| LLM | Google Gemini 2.5 Flash (`google-genai`) |
+| LLM | Google Gemini 3.8 Flash (`google-genai`) |
 | Vector DB | Pinecone serverless, **integrated index** |
 | Embeddings | `llama-text-embed-v2`, hosted by Pinecone (384 dims, cosine) |
 | Retrieval | Pinecone text search (no local model) |

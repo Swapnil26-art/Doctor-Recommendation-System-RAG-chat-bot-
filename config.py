@@ -16,7 +16,7 @@ DEFAULT_INDEX_NAME = "medicalbot"
 # The knowledge base lives in its own namespace so it can be rebuilt without
 # touching anything else in the index.
 DEFAULT_NAMESPACE = "knowledge-base"
-DEFAULT_LLM_MODEL = "gemini-2.5-flash"
+DEFAULT_LLM_MODEL = "gemini-3.8-flash"
 DEFAULT_TOP_K = 4
 # Below this cosine score the chunks are noise; better to admit we don't know.
 DEFAULT_MIN_SCORE = 0.30

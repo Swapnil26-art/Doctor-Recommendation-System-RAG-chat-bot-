@@ -199,3 +199,75 @@ def test_retrieve_errors_propagate(monkeypatch):
 
     with pytest.raises(RuntimeError):
         rag.answer_question("q")
+
+
+class FakeGeminiError(Exception):
+    """Mimics google.genai.errors.APIError's code/status shape."""
+
+    def __init__(self, code=None, status=None):
+        super().__init__(f"{code} {status}")
+        self.code = code
+        self.status = status
+
+
+class FakeModels:
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)
+        self.calls = []
+
+    def generate_content(self, model, contents):
+        self.calls.append({"model": model, "contents": contents})
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return type("Response", (), {"text": outcome})()
+
+
+class FakeGeminiClient:
+    def __init__(self, outcomes):
+        self.models = FakeModels(outcomes)
+
+
+def test_generate_retries_transient_failures_then_succeeds(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(rag.time, "sleep", sleeps.append)
+    client = FakeGeminiClient(
+        [
+            FakeGeminiError(503, "UNAVAILABLE"),
+            FakeGeminiError(None, "RESOURCE_EXHAUSTED"),  # status-only error
+            "  Asthma affects the airways.  ",
+        ]
+    )
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    assert rag.generate("prompt") == "Asthma affects the airways."
+    assert len(client.models.calls) == 3
+    assert sleeps == [1.0, 2.0]
+
+
+def test_generate_does_not_retry_client_errors(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(rag.time, "sleep", sleeps.append)
+    client = FakeGeminiClient([FakeGeminiError(400, "INVALID_ARGUMENT")])
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    with pytest.raises(FakeGeminiError):
+        rag.generate("prompt")
+
+    assert sleeps == []
+    assert len(client.models.calls) == 1
+
+
+def test_generate_gives_up_after_max_attempts(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(rag.time, "sleep", sleeps.append)
+    client = FakeGeminiClient(
+        [FakeGeminiError(503, "UNAVAILABLE")] * rag.GENERATION_ATTEMPTS
+    )
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    with pytest.raises(FakeGeminiError):
+        rag.generate("prompt")
+
+    assert len(client.models.calls) == rag.GENERATION_ATTEMPTS
+    assert sleeps == [1.0, 2.0]

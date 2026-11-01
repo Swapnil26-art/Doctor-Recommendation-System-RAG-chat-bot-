@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 
 from config import require_settings
@@ -33,6 +34,16 @@ Answer:"""
 
 # Keeps prompts (and Gemini cost) bounded regardless of what retrieval returns.
 MAX_CONTEXT_CHARS = 8000
+
+# Gemini occasionally answers "503 UNAVAILABLE / high demand" or rate-limits us.
+# Those are worth retrying; auth and bad-request errors are not.
+GENERATION_ATTEMPTS = 3
+RETRY_BASE_DELAY_SECONDS = 1.0
+RETRY_MAX_DELAY_SECONDS = 8.0
+TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
+TRANSIENT_STATUS_NAMES = frozenset(
+    {"DEADLINE_EXCEEDED", "INTERNAL", "RESOURCE_EXHAUSTED", "UNAVAILABLE"}
+)
 
 
 @dataclass(frozen=True)
@@ -148,11 +159,47 @@ def build_prompt(question: str, chunks: list[tuple[str, Source]]) -> str:
     return PROMPT_TEMPLATE.format(context="\n\n---\n\n".join(context_parts), question=question)
 
 
+def _is_transient(exc: BaseException) -> bool:
+    """True for errors that a retry might cure (throttling, outage).
+
+    ``google.genai`` errors expose an integer HTTP ``code`` and a string
+    ``status``; other SDKs only expose one of the two.
+    """
+    try:
+        if int(getattr(exc, "code", None)) in TRANSIENT_HTTP_CODES:
+            return True
+    except (TypeError, ValueError):
+        pass
+    status = getattr(exc, "status", None)
+    return isinstance(status, str) and status.upper() in TRANSIENT_STATUS_NAMES
+
+
 def generate(prompt: str) -> str:
     settings = require_settings()
     client = _get_genai_client()
-    response = client.models.generate_content(model=settings.llm_model, contents=prompt)
-    return (getattr(response, "text", "") or "").strip()
+
+    for attempt in range(1, GENERATION_ATTEMPTS + 1):
+        try:
+            response = client.models.generate_content(
+                model=settings.llm_model, contents=prompt
+            )
+            return (getattr(response, "text", "") or "").strip()
+        except Exception as exc:
+            if attempt == GENERATION_ATTEMPTS or not _is_transient(exc):
+                raise
+            delay = min(
+                RETRY_MAX_DELAY_SECONDS, RETRY_BASE_DELAY_SECONDS * 2 ** (attempt - 1)
+            )
+            logger.warning(
+                "Gemini call failed (%s); retrying in %.1fs (attempt %d/%d)",
+                exc,
+                delay,
+                attempt,
+                GENERATION_ATTEMPTS,
+            )
+            time.sleep(delay)
+
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _dedupe_sources(chunks: list[tuple[str, Source]]) -> list[Source]:
