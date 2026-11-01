@@ -148,9 +148,11 @@ def test_zero_results_returns_empty_list():
     assert find_nearby_places(0, 0, "doctor", api_key="k", session=session) == []
 
 
-def test_request_denied_status_returns_empty_list():
+def test_request_denied_raises_places_error():
     session = FakeSession({"status": "REQUEST_DENIED", "error_message": "bad key"})
-    assert find_nearby_places(0, 0, "doctor", api_key="k", session=session) == []
+
+    with pytest.raises(places.PlacesError):
+        find_nearby_places(0, 0, "doctor", api_key="k", session=session)
 
 
 def test_malformed_geometry_is_skipped():

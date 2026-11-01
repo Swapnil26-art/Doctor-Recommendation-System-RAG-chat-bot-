@@ -231,12 +231,15 @@ def find_nearby_places(
     if status == "ZERO_RESULTS":
         return []
     if status != "OK":
+        # REQUEST_DENIED (bad key / API not enabled), OVER_QUERY_LIMIT, etc.
+        # Returning [] here would tell the user "nothing nearby", which is a
+        # lie: the lookup never actually ran. Surface it as an outage instead.
         logger.warning(
             "Google Places returned status=%s message=%s",
             status,
             payload.get("error_message", "n/a"),
         )
-        return []
+        raise PlacesError(f"Google Places returned {status}")
 
     origin = (latitude, longitude)
     places: list[Place] = []

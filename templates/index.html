@@ -259,11 +259,14 @@
                 const data = await response.json().catch(() => null);
                 pending.remove();
 
-                if (!response.ok || !data) {
+                if (!data) {
                     addBotText("Sorry, I'm having a connection issue. Please try again.");
                 } else if (data.type === "places") {
                     addPlaceResults(data);
                 } else {
+                    // Error responses carry a safe, user-facing message too
+                    // (e.g. "doctor search is unavailable"), so show it
+                    // instead of a misleading generic connection error.
                     addBotText(data.response || "Sorry, I couldn't process that.", data.sources);
                 }
             } catch (error) {
