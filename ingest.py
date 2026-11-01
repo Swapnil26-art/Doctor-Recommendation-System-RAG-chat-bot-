@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    if "PINECONE_API_KEY" in settings.missing_keys:
+    if not args.dry_run and "PINECONE_API_KEY" in settings.missing_keys:
         logger.error("PINECONE_API_KEY is not set. Copy .env.example to .env and fill it in.")
         return 1
 

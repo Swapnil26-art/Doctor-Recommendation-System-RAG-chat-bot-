@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 import ingest
+from config import get_settings
 
 
 class FakeIndex:
@@ -77,3 +78,27 @@ def test_dry_run_does_not_touch_pinecone(monkeypatch, tmp_path):
     monkeypatch.setattr(pinecone, "Pinecone", explode)
 
     assert ingest.main(["--dry-run"]) == 0
+
+
+def test_dry_run_needs_no_credentials(monkeypatch, tmp_path):
+    (tmp_path / "book.pdf").write_bytes(b"%PDF-1.4 fake")
+    monkeypatch.setattr(ingest, "DATA_PATH", tmp_path)
+    monkeypatch.setattr(
+        ingest,
+        "load_chunks",
+        lambda path, size, overlap: [type("C", (), {"as_record": lambda self: {}})()],
+    )
+    monkeypatch.delenv("PINECONE_API_KEY", raising=False)
+    get_settings.cache_clear()
+
+    assert ingest.main(["--dry-run"]) == 0
+
+
+def test_real_run_requires_a_pinecone_key(monkeypatch, tmp_path):
+    (tmp_path / "book.pdf").write_bytes(b"%PDF-1.4 fake")
+    monkeypatch.setattr(ingest, "DATA_PATH", tmp_path)
+    monkeypatch.setattr(ingest, "load_chunks", lambda path, size, overlap: ["chunk"])
+    monkeypatch.delenv("PINECONE_API_KEY", raising=False)
+    get_settings.cache_clear()
+
+    assert ingest.main([]) == 1
