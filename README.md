@@ -35,7 +35,7 @@ message needs, so the user never has to switch modes.
 - **No local ML stack** — embeddings run inside Pinecone. No torch, no 2 GB
   download, no Python 3.13 ceiling.
 - **Configurable, testable, container-ready** — settings in one module, Flask
-  application factory, 98 tests, `Dockerfile`, `docker compose`, and CI.
+  application factory, 100 tests, `Dockerfile`, `docker compose`, and CI.
 
 ## 🏗️ Architecture
 
@@ -92,7 +92,7 @@ config.py              Environment settings, validation
 ingest.py              One-off PDF -> Pinecone ingestion (batched, retryable)
 templates/index.html   Chat UI (all rendering escaped/validated)
 static/style.css       Styling
-tests/                 Pytest suite (98 tests, no network required)
+tests/                 Pytest suite (100 tests, no network required)
 Dockerfile             Production image (non-root, healthcheck)
 docker-compose.yml     Local container setup
 SECURITY.md            Key rotation + deployment checklist
@@ -231,7 +231,7 @@ details are logged, never returned.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # 98 tests, ~1 second
+pytest            # 100 tests, ~1 second
 ruff check .
 ```
 
