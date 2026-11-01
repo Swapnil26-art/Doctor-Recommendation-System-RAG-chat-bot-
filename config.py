@@ -25,6 +25,27 @@ DEFAULT_CHUNK_OVERLAP = 150
 DEFAULT_PLACES_RADIUS_KM = 50
 DEFAULT_PLACES_MAX_RESULTS = 5
 
+# Values shipped in .env.example. Treating them as "configured" makes
+# /healthz report ok while every request fails with 401/403.
+_PLACEHOLDER_MARKERS = (
+    "your_",
+    "your-",
+    "api_key",
+    "api-key",
+    "replace-me",
+    "changeme",
+    "<",
+    "xxx",
+)
+
+
+def is_placeholder(value: str) -> bool:
+    """True for empty values and for the examples in ``.env.example``."""
+    lowered = (value or "").strip().lower()
+    if not lowered:
+        return True
+    return any(marker in lowered for marker in _PLACEHOLDER_MARKERS)
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -52,7 +73,7 @@ class Settings:
             "GOOGLE_MAPS_API_KEY": self.google_maps_api_key,
             "PINECONE_API_KEY": self.pinecone_api_key,
         }
-        return [name for name, value in required.items() if not value]
+        return [name for name, value in required.items() if is_placeholder(value)]
 
 
 def _int_from_env(name: str, default: int) -> int:
@@ -95,15 +116,24 @@ def get_settings() -> Settings:
     )
 
 
-def require_settings() -> Settings:
-    """Return settings, or raise if a required API key is missing.
+def require_settings(*names: str) -> Settings:
+    """Return settings, or raise if one of ``names`` is not configured.
 
-    Called lazily (at request time) rather than at import time so the web app
-    can still boot and serve ``/healthz`` while it is being misconfigured.
+    Callers ask only for the keys they actually use: a missing Maps key must
+    not break the chatbot, and a missing Gemini key must not break ingestion.
+    With no arguments every required key is checked.
     """
     settings = get_settings()
-    if settings.missing_keys:
+    fields = {
+        "GOOGLE_API_KEY": settings.google_api_key,
+        "GOOGLE_MAPS_API_KEY": settings.google_maps_api_key,
+        "PINECONE_API_KEY": settings.pinecone_api_key,
+    }
+    missing = [
+        name for name in (names or tuple(fields)) if is_placeholder(fields[name])
+    ]
+    if missing:
         raise RuntimeError(
-            "Missing required environment variables: " + ", ".join(settings.missing_keys)
+            "Missing required environment variables: " + ", ".join(missing)
         )
     return settings

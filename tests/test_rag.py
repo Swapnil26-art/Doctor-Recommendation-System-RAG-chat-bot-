@@ -271,3 +271,13 @@ def test_generate_gives_up_after_max_attempts(monkeypatch):
 
     assert len(client.models.calls) == rag.GENERATION_ATTEMPTS
     assert sleeps == [1.0, 2.0]
+
+
+def test_chat_does_not_require_a_maps_key(monkeypatch):
+    """The chatbot must keep working when only doctor search is unconfigured."""
+    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    get_settings.cache_clear()
+    client = FakeGeminiClient(["answer"])
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    assert rag.generate("prompt") == "answer"

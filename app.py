@@ -127,7 +127,7 @@ def _doctor_response(payload: dict, message: str):
         return jsonify({"type": "text", "response": response})
 
     try:
-        settings = require_settings()
+        settings = require_settings("GOOGLE_MAPS_API_KEY")
         results = places.find_nearby_places(
             coordinates[0],
             coordinates[1],

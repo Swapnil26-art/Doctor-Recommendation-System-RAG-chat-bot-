@@ -81,7 +81,7 @@ def _get_index():
             if _index is None:
                 from pinecone import Pinecone
 
-                settings = require_settings()
+                settings = require_settings("PINECONE_API_KEY")
                 logger.info(
                     "Connecting to Pinecone index %s (namespace %s)",
                     settings.pinecone_index,
@@ -100,7 +100,7 @@ def _get_genai_client():
             if _genai_client is None:
                 from google import genai
 
-                settings = require_settings()
+                settings = require_settings("GOOGLE_API_KEY")
                 logger.info("Initialising Gemini client for %s", settings.llm_model)
                 _genai_client = genai.Client(api_key=settings.google_api_key)
     return _genai_client
@@ -108,7 +108,7 @@ def _get_genai_client():
 
 def retrieve(question: str, top_k: int | None = None) -> list[tuple[str, Source]]:
     """Return ``(text, Source)`` pairs, most similar first."""
-    settings = require_settings()
+    settings = require_settings("PINECONE_API_KEY")
     index = _get_index()
 
     response = index.search(
@@ -175,7 +175,7 @@ def _is_transient(exc: BaseException) -> bool:
 
 
 def generate(prompt: str) -> str:
-    settings = require_settings()
+    settings = require_settings("GOOGLE_API_KEY")
     client = _get_genai_client()
 
     for attempt in range(1, GENERATION_ATTEMPTS + 1):

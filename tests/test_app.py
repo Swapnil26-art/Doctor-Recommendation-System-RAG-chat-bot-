@@ -169,7 +169,7 @@ def test_no_results_returns_a_helpful_message(client, monkeypatch):
 def test_missing_configuration_returns_generic_error(client, monkeypatch):
     import app as medbot_app
 
-    def not_configured():
+    def not_configured(*args, **kwargs):
         raise RuntimeError("PINECONE_API_KEY is missing")
 
     monkeypatch.setattr(medbot_app, "require_settings", not_configured)

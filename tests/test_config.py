@@ -31,6 +31,36 @@ def test_partial_configuration_is_detected():
     assert settings.missing_keys == ["GOOGLE_MAPS_API_KEY"]
 
 
+def test_placeholder_values_are_not_considered_configured():
+    # Exactly what ships in .env.example: these must not make /healthz lie.
+    settings = Settings(
+        google_api_key="YOUR_GEMINI_API_KEY",
+        google_maps_api_key="Your_API_Key",
+        pinecone_api_key="YOUR_PINECONE_API_KEY",
+    )
+    assert settings.missing_keys == list(REQUIRED)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["AIzaSyTESTKEY0000000000000000000000000", "pcsk_TESTKEY0000000000", "test-google-key"],
+)
+def test_real_looking_keys_are_considered_configured(value):
+    assert config.is_placeholder(value) is False
+
+
+def test_components_only_require_their_own_keys(monkeypatch):
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "YOUR_GOOGLE_MAPS_PLACES_API_KEY")
+    get_settings.cache_clear()
+
+    # Chat still works with no Maps key ...
+    require_settings("GOOGLE_API_KEY", "PINECONE_API_KEY")
+
+    # ... but doctor search must refuse to run.
+    with pytest.raises(RuntimeError):
+        require_settings("GOOGLE_MAPS_API_KEY")
+
+
 def test_require_settings_raises_without_keys(monkeypatch):
     monkeypatch.setattr(config, "load_dotenv", lambda *args, **kwargs: None)
     for name in REQUIRED:
