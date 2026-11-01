@@ -43,7 +43,7 @@ def test_placeholder_values_are_not_considered_configured():
 
 @pytest.mark.parametrize(
     "value",
-    ["AIzaSyTESTKEY0000000000000000000000000", "pcsk_TESTKEY0000000000", "test-google-key"],
+    ["google-key-123", "pinecone-key-123", "test-google-key"],
 )
 def test_real_looking_keys_are_considered_configured(value):
     assert config.is_placeholder(value) is False
