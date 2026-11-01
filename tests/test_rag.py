@@ -1,71 +1,201 @@
-"""Tests for the RAG wrapper.
+"""Tests for the RAG wrapper (retrieval shape, prompting, citations).
 
-The real chain needs torch + Pinecone + Gemini, so these tests exercise the
-wrapper contract and, importantly, assert that importing it stays cheap.
+No network and no model downloads: the Pinecone index and Gemini client are
+replaced with fakes.
 """
 
 from __future__ import annotations
 
 import sys
 
+import pytest
+
 import rag
+from config import get_settings
 
 
-class FakeChain:
+class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
-        self.questions = []
 
-    def invoke(self, question):
-        self.questions.append(question)
+    def to_dict(self):
         return self.payload
+
+
+class FakeIndex:
+    def __init__(self, payload=None):
+        self.payload = payload or {"result": {"hits": []}}
+        self.calls = []
+
+    def search(self, **kwargs):
+        self.calls.append(kwargs)
+        return FakeResponse(self.payload)
+
+
+def make_chunks():
+    return [
+        ("Asthma is a chronic disease of the airways.", rag.Source("Medical_book.pdf", 12, 0.91)),
+        ("Wheezing and cough are common symptoms.", rag.Source("Medical_book.pdf", 13, 0.84)),
+    ]
 
 
 def test_importing_rag_does_not_pull_in_torch():
     assert "torch" not in sys.modules
 
 
-def test_answer_question_strips_whitespace(monkeypatch):
-    monkeypatch.setattr(rag, "get_qa_chain", lambda: FakeChain({"result": "  hello  "}))
-    assert rag.answer_question("question") == "hello"
+def test_retrieve_maps_hits_and_skips_empty_text(monkeypatch):
+    index = FakeIndex(
+        {
+            "result": {
+                "hits": [
+                    {
+                        "_id": "a",
+                        "_score": 0.83456,
+                        "fields": {
+                            "text": "Asthma is a chronic disease.",
+                            "source": "Medical_book.pdf",
+                            "page": 12,
+                        },
+                    },
+                    {"_id": "b", "_score": 0.2, "fields": {"text": "   "}},
+                ]
+            }
+        }
+    )
+    monkeypatch.setattr(rag, "_get_index", lambda: index)
+
+    results = rag.retrieve("what is asthma", top_k=2)
+
+    assert len(results) == 1
+    text, source = results[0]
+    assert text == "Asthma is a chronic disease."
+    assert source == rag.Source("Medical_book.pdf", 12, 0.8346)
+
+    call = index.calls[0]
+    assert call["namespace"] == get_settings().pinecone_namespace
+    assert call["query"] == {"inputs": {"text": "what is asthma"}, "top_k": 2}
+    assert call["fields"] == ["text", "source", "page"]
 
 
-def test_empty_answer_has_fallback(monkeypatch):
-    monkeypatch.setattr(rag, "get_qa_chain", lambda: FakeChain({"result": "   "}))
-    assert "could not find" in rag.answer_question("question").lower()
+def test_retrieve_drops_chunks_below_the_relevance_floor(monkeypatch):
+    index = FakeIndex(
+        {
+            "result": {
+                "hits": [
+                    {"_id": "a", "_score": 0.62, "fields": {"text": "relevant"}},
+                    {"_id": "b", "_score": 0.29, "fields": {"text": "irrelevant"}},
+                ]
+            }
+        }
+    )
+    monkeypatch.setattr(rag, "_get_index", lambda: index)
+
+    results = rag.retrieve("question")
+
+    assert [text for text, _source in results] == ["relevant"]
 
 
-def test_missing_result_key_is_handled(monkeypatch):
-    monkeypatch.setattr(rag, "get_qa_chain", lambda: FakeChain({}))
-    assert "could not find" in rag.answer_question("question").lower()
+def test_all_weak_matches_mean_no_answer(monkeypatch):
+    index = FakeIndex(
+        {"result": {"hits": [{"_id": "a", "_score": 0.12, "fields": {"text": "noise"}}]}}
+    )
+    monkeypatch.setattr(rag, "_get_index", lambda: index)
+    monkeypatch.setattr(rag, "generate", lambda prompt: "should not be called")
+
+    answer = rag.answer_question("something not in the book")
+
+    assert "couldn't find" in answer.text.lower()
+    assert answer.sources == []
 
 
-def test_chain_is_built_only_once(monkeypatch):
-    built = []
+def test_retrieve_uses_configured_top_k(monkeypatch):
+    index = FakeIndex()
+    monkeypatch.setattr(rag, "_get_index", lambda: index)
 
-    def fake_build():
-        built.append(True)
-        return FakeChain({"result": "ok"})
+    rag.retrieve("question")
 
-    monkeypatch.setattr(rag, "_build_qa_chain", fake_build)
-    monkeypatch.setattr(rag, "_qa_chain", None)
-
-    rag.get_qa_chain()
-    rag.get_qa_chain()
-
-    assert built == [True]
+    assert index.calls[0]["query"]["top_k"] == get_settings().retrieval_top_k
 
 
-def test_question_reaches_the_chain(monkeypatch):
-    chain = FakeChain({"result": "answer"})
-    monkeypatch.setattr(rag, "get_qa_chain", lambda: chain)
+def test_retrieve_handles_missing_source_metadata(monkeypatch):
+    index = FakeIndex(
+        {"result": {"hits": [{"_id": "a", "_score": 0.5, "fields": {"text": "Some text"}}]}}
+    )
+    monkeypatch.setattr(rag, "_get_index", lambda: index)
 
-    rag.answer_question("What is asthma?")
+    _text, source = rag.retrieve("q")[0]
 
-    assert chain.questions == ["What is asthma?"]
+    assert source.source == "knowledge base"
+    assert source.page is None
 
 
-def test_prompt_allows_refusal():
-    assert "do not have" in rag.PROMPT_TEMPLATE.lower()
-    assert "{context}" in rag.PROMPT_TEMPLATE
-    assert "{question}" in rag.PROMPT_TEMPLATE
+def test_prompt_contains_question_and_context():
+    prompt = rag.build_prompt("What is asthma?", make_chunks())
+
+    assert "What is asthma?" in prompt
+    assert "Asthma is a chronic disease" in prompt
+    assert "ONLY the context" in prompt
+
+
+def test_prompt_context_is_capped():
+    huge = [("x" * 5000, rag.Source("book.pdf", 1, 0.9)) for _ in range(10)]
+    prompt = rag.build_prompt("q", huge)
+
+    assert len(prompt) < rag.MAX_CONTEXT_CHARS + 2000
+
+
+def test_sources_are_deduped_by_page(monkeypatch):
+    chunks = [
+        ("first half", rag.Source("book.pdf", 10, 0.7)),
+        ("second half", rag.Source("book.pdf", 10, 0.9)),
+        ("other page", rag.Source("book.pdf", 11, 0.8)),
+    ]
+    monkeypatch.setattr(rag, "retrieve", lambda question, top_k=None: chunks)
+    monkeypatch.setattr(rag, "generate", lambda prompt: "answer")
+
+    sources = rag.answer_question("q").sources
+
+    assert len(sources) == 2
+    assert sources[0] == rag.Source("book.pdf", 10, 0.9)
+    assert sources[0].score >= sources[1].score
+
+
+def test_answer_uses_generation(monkeypatch):
+    monkeypatch.setattr(rag, "retrieve", lambda question, top_k=None: make_chunks())
+    monkeypatch.setattr(rag, "generate", lambda prompt: "  Asthma affects the airways.  ")
+
+    answer = rag.answer_question("what is asthma")
+
+    assert answer.text == "Asthma affects the airways."
+    assert len(answer.sources) == 2
+
+
+def test_no_context_skips_the_llm(monkeypatch):
+    calls = []
+    monkeypatch.setattr(rag, "retrieve", lambda question, top_k=None: [])
+    monkeypatch.setattr(rag, "generate", lambda prompt: calls.append(prompt) or "x")
+
+    answer = rag.answer_question("something unknown")
+
+    assert calls == []
+    assert "couldn't find" in answer.text.lower()
+    assert answer.sources == []
+
+
+def test_empty_generation_uses_fallback(monkeypatch):
+    monkeypatch.setattr(rag, "retrieve", lambda question, top_k=None: make_chunks())
+    monkeypatch.setattr(rag, "generate", lambda prompt: "   ")
+
+    answer = rag.answer_question("q")
+
+    assert "couldn't generate" in answer.text.lower()
+
+
+def test_retrieve_errors_propagate(monkeypatch):
+    def boom(question, top_k=None):
+        raise RuntimeError("pinecone down")
+
+    monkeypatch.setattr(rag, "retrieve", boom)
+
+    with pytest.raises(RuntimeError):
+        rag.answer_question("q")

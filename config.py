@@ -13,8 +13,15 @@ from functools import lru_cache
 from dotenv import load_dotenv
 
 DEFAULT_INDEX_NAME = "medicalbot"
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# The knowledge base lives in its own namespace so it can be rebuilt without
+# touching anything else in the index.
+DEFAULT_NAMESPACE = "knowledge-base"
 DEFAULT_LLM_MODEL = "gemini-2.5-flash"
+DEFAULT_TOP_K = 4
+# Below this cosine score the chunks are noise; better to admit we don't know.
+DEFAULT_MIN_SCORE = 0.30
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_OVERLAP = 150
 DEFAULT_PLACES_RADIUS_KM = 50
 DEFAULT_PLACES_MAX_RESULTS = 5
 
@@ -27,8 +34,12 @@ class Settings:
     google_maps_api_key: str
     pinecone_api_key: str
     pinecone_index: str = DEFAULT_INDEX_NAME
-    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    pinecone_namespace: str = DEFAULT_NAMESPACE
     llm_model: str = DEFAULT_LLM_MODEL
+    retrieval_top_k: int = DEFAULT_TOP_K
+    min_relevance_score: float = DEFAULT_MIN_SCORE
+    chunk_size: int = DEFAULT_CHUNK_SIZE
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP
     places_radius_km: int = DEFAULT_PLACES_RADIUS_KM
     places_max_results: int = DEFAULT_PLACES_MAX_RESULTS
     log_level: str = "INFO"
@@ -51,17 +62,33 @@ def _int_from_env(name: str, default: int) -> int:
         return default
 
 
+def _float_from_env(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, ""))
+    except (TypeError, ValueError):
+        return default
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the cached settings, loading ``.env`` on first use."""
-    load_dotenv()
+    """Return the cached settings, loading ``.env`` on first use.
+
+    ``override=True`` means the project's ``.env`` wins over a stale
+    ``PINECONE_API_KEY`` left behind in the OS environment. Containers have no
+    ``.env``, so real environment variables still take effect there.
+    """
+    load_dotenv(override=True)
     return Settings(
         google_api_key=os.getenv("GOOGLE_API_KEY", "").strip(),
         google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY", "").strip(),
         pinecone_api_key=os.getenv("PINECONE_API_KEY", "").strip(),
         pinecone_index=os.getenv("PINECONE_INDEX", DEFAULT_INDEX_NAME),
-        embedding_model=os.getenv("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
+        pinecone_namespace=os.getenv("PINECONE_NAMESPACE", DEFAULT_NAMESPACE),
         llm_model=os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
+        retrieval_top_k=_int_from_env("RETRIEVAL_TOP_K", DEFAULT_TOP_K),
+        min_relevance_score=_float_from_env("MIN_RELEVANCE_SCORE", DEFAULT_MIN_SCORE),
+        chunk_size=_int_from_env("CHUNK_SIZE", DEFAULT_CHUNK_SIZE),
+        chunk_overlap=_int_from_env("CHUNK_OVERLAP", DEFAULT_CHUNK_OVERLAP),
         places_radius_km=_int_from_env("PLACES_RADIUS_KM", DEFAULT_PLACES_RADIUS_KM),
         places_max_results=_int_from_env("PLACES_MAX_RESULTS", DEFAULT_PLACES_MAX_RESULTS),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),

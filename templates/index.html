@@ -114,8 +114,30 @@
             addMessage("user", escapeHtml(text).replace(/\r?\n/g, "<br>"));
         }
 
-        function addBotText(text) {
-            addMessage("bot", renderMarkdown(text));
+        function addBotText(text, sources) {
+            const bubble = addMessage("bot", renderMarkdown(text));
+            addSources(bubble, sources);
+            return bubble;
+        }
+
+        function addSources(bubble, sources) {
+            if (!Array.isArray(sources) || sources.length === 0) return;
+
+            const seen = new Set();
+            const labels = [];
+            sources.forEach((source) => {
+                const page = source.page ? ", page " + source.page : "";
+                const label = (source.source || "knowledge base") + page;
+                if (!seen.has(label)) {
+                    seen.add(label);
+                    labels.push(label);
+                }
+            });
+
+            const footer = document.createElement("div");
+            footer.className = "sources";
+            footer.textContent = "Source: " + labels.join(" · ");
+            bubble.appendChild(footer);
         }
 
         function isSafeMapUrl(value) {
@@ -242,7 +264,7 @@
                 } else if (data.type === "places") {
                     addPlaceResults(data);
                 } else {
-                    addBotText(data.response || "Sorry, I couldn't process that.");
+                    addBotText(data.response || "Sorry, I couldn't process that.", data.sources);
                 }
             } catch (error) {
                 console.error("Request failed:", error);

@@ -21,9 +21,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
-      # Deliberately installs only the light dependencies: rag.py imports
-      # torch lazily, so the suite runs without the ~2 GB ML stack.
-      - name: Install test dependencies
+      # Installs the real runtime too, so pinned versions are validated.
+      - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
       - name: Lint

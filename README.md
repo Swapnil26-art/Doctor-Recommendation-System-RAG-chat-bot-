@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Swapnil26-art/Doctor-Recommendation-System-RAG-chat-bot-/actions/workflows/ci.yml/badge.svg)](https://github.com/Swapnil26-art/Doctor-Recommendation-System-RAG-chat-bot-/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Framework-Flask-green.svg)](https://flask.palletsprojects.com/)
 [![AI-Platform](https://img.shields.io/badge/AI_Platform-Google_Gemini-orange.svg)](https://ai.google.dev/)
 [![VectorDB](https://img.shields.io/badge/Vector_DB-Pinecone-4C5C6F.svg)](https://www.pinecone.io/)
@@ -19,9 +19,12 @@ message needs, so the user never has to switch modes.
 
 ## 🚀 Features
 
-- **Medical Q&A (RAG)** — PDF is chunked, embedded with `all-MiniLM-L6-v2`, stored
-  in Pinecone, and answered by Gemini using only the retrieved context. The model
-  is instructed to say "I don't have that information" rather than guess.
+- **Medical Q&A (RAG)** — the PDF is chunked and stored in Pinecone with the
+  hosted `llama-text-embed-v2` model; Gemini answers using only the retrieved
+  context and is instructed to admit when the book does not cover something.
+- **Page citations** — every answer shows which page of the book it came from.
+- **Relevance floor** — weak matches are discarded, so unrelated questions get
+  "I couldn't find that" instead of a confident hallucination.
 - **Doctor recommendation** — Google Places lookups ranked by true geodesic
   distance, permanently-closed businesses filtered out, results returned as
   structured data and rendered as safe cards.
@@ -29,8 +32,10 @@ message needs, so the user never has to switch modes.
   pain" searches cardiologists, "nearest hospital" searches hospitals.
 - **Safe rendering** — no `innerHTML` on untrusted data. Every API/LLM string is
   escaped before display, and map links are validated to `https://*.google.com`.
+- **No local ML stack** — embeddings run inside Pinecone. No torch, no 2 GB
+  download, no Python 3.13 ceiling.
 - **Configurable, testable, container-ready** — settings in one module, Flask
-  application factory, lazy model loading, `Dockerfile`, `docker compose`, and CI.
+  application factory, 89 tests, `Dockerfile`, `docker compose`, and CI.
 
 ## 🏗️ Architecture
 
@@ -44,8 +49,9 @@ Browser (templates/index.html)
                          │      ├── yes → places.find_nearby_places()
                          │      │          └── Google Places API + geopy
                          │      └── no  → rag.answer_question()
-                         │                 ├── MiniLM embeddings (local)
-                         │                 ├── Pinecone similarity search (k=3)
+                         │                 ├── Pinecone search(inputs={"text": q})
+                         │                 │     └── llama-text-embed-v2 (server-side)
+                         │                 ├── relevance floor + page citations
                          │                 └── Gemini 2.5 Flash
                          └── JSON: { type: "text" | "places", ... }
 ```
@@ -53,40 +59,42 @@ Browser (templates/index.html)
 ### Data ingestion (one-off)
 
 ```
-data/*.pdf → PyPDFLoader → RecursiveCharacterTextSplitter (500/20)
-           → all-MiniLM-L6-v2 (384 dims) → Pinecone index "medicalbot"
+data/*.pdf → pypdf → per-page chunks (1000 chars / 150 overlap)
+           → Pinecone upsert_records (text only)
+           → Pinecone embeds server-side with llama-text-embed-v2
+           → namespace "knowledge-base"
 ```
+
+Because Pinecone computes the embeddings, `ingest.py` runs in seconds and needs
+no model download.
 
 ## 🛠️ Tech stack
 
 | Layer | Choice |
 | --- | --- |
 | Backend | Flask 3.1 |
-| LLM | Google Gemini 2.5 Flash (`langchain-google-genai`) |
-| Vector DB | Pinecone (384 dimensions, cosine) |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (local, no API cost) |
-| RAG orchestration | LangChain 0.3 |
+| LLM | Google Gemini 2.5 Flash (`google-genai`) |
+| Vector DB | Pinecone serverless, **integrated index** |
+| Embeddings | `llama-text-embed-v2`, hosted by Pinecone (384 dims, cosine) |
+| Retrieval | Pinecone text search (no local model) |
 | Maps | Google Places API (Nearby Search) + `geopy` |
-| PDF parsing | `pypdf` via `PyPDFLoader` |
+| PDF parsing | `pypdf` |
 | Frontend | Vanilla HTML/CSS/JS |
-
-> **Python 3.12 or 3.13 is required.** `torch` and `langchain-pinecone` do not
-> publish wheels for Python 3.14 yet. On 3.14 `pip install` fails with
-> "no matching distribution found".
 
 ## 📁 Project structure
 
 ```
 app.py                 Flask factory + routes (/  /get  /healthz)
-rag.py                 Lazy RAG chain (torch imported only on first question)
+rag.py                 Pinecone text search + Gemini prompt/answer + citations
+knowledge.py           PDF -> chunks (pure Python, testable)
 places.py              Google Places search, specialty mapping, distance sort
 config.py              Environment settings, validation
-ingest.py              One-off PDF → Pinecone ingestion
+ingest.py              One-off PDF -> Pinecone ingestion (batched, retryable)
 templates/index.html   Chat UI (all rendering escaped/validated)
 static/style.css       Styling
-tests/                 Pytest suite (65 tests, no network, no ML stack needed)
-Dockerfile             Production image (CPU torch, non-root, healthcheck)
-docker-compose.yml     Local container setup with model cache volume
+tests/                 Pytest suite (89 tests, no network required)
+Dockerfile             Production image (non-root, healthcheck)
+docker-compose.yml     Local container setup
 SECURITY.md            Key rotation + deployment checklist
 ```
 
@@ -94,10 +102,33 @@ SECURITY.md            Key rotation + deployment checklist
 
 ### Prerequisites
 
-- **Python 3.12 or 3.13**
+- **Python 3.12 or newer**
 - A Google AI Studio key (Gemini)
-- A Google Maps **Places API** key (Places API enabled in Google Cloud)
-- A Pinecone account with an index named `medicalbot`, **dimension 384**, **cosine**
+- A Google Maps **Places API** key (Places API enabled, billing on)
+- A Pinecone **integrated index** using `llama-text-embed-v2`:
+
+  | Setting | Value |
+  | --- | --- |
+  | Name | `medicalbot` |
+  | Dimension | `384` |
+  | Metric | `cosine` |
+  | Embedding model | `llama-text-embed-v2` |
+  | Text field | `text` |
+
+  Create it in the Pinecone console (**Create index → Integrated model**) or:
+
+  ```python
+  from pinecone import Pinecone
+  Pinecone(api_key="...").create_index_for_model(
+      name="medicalbot",
+      cloud="aws",
+      region="us-east-1",
+      embed={"model": "llama-text-embed-v2", "field_map": {"text": "text"}},
+  )
+  ```
+
+  > A *standard* index (one where you supply your own vectors) will not work
+  > with this app: retrieval is done with `search(inputs={"text": ...})`.
 
 ### 1. Clone and install
 
@@ -105,9 +136,7 @@ SECURITY.md            Key rotation + deployment checklist
 git clone https://github.com/Swapnil26-art/Doctor-Recommendation-System-RAG-chat-bot-.git
 cd Doctor-Recommendation-System-RAG-chat-bot-
 
-py -3.13 -m venv .venv            # Windows
-# python3.12 -m venv .venv        # macOS / Linux
-
+python -m venv .venv
 .\.venv\Scripts\activate          # Windows
 # source .venv/bin/activate       # macOS / Linux
 
@@ -116,7 +145,7 @@ pip install -r requirements.txt
 
 ### 2. Configure secrets
 
-```bash
+```powershell
 Copy-Item .env.example .env      # Windows
 cp .env.example .env             # macOS / Linux
 ```
@@ -129,16 +158,17 @@ GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_PLACES_API_KEY"
 PINECONE_API_KEY="YOUR_PINECONE_API_KEY"
 ```
 
-`.env` is gitignored. Never commit it — see [SECURITY.md](SECURITY.md).
+`.env` is gitignored and **takes precedence over system environment variables**
+(so a stale `PINECONE_API_KEY` in your OS cannot silently break the app).
+Never commit it — see [SECURITY.md](SECURITY.md).
 
 ### 3. Ingest the knowledge base
 
 ```bash
-python ingest.py
+python ingest.py --dry-run   # count chunks, touch nothing (3522 for this PDF)
+python ingest.py             # upsert into PINECONE_NAMESPACE
+python ingest.py --reset     # delete the namespace first, then re-ingest
 ```
-
-Wait for `Successfully ingested N chunks`. Re-running will add duplicate
-vectors, so only run it when the source PDF or chunking changes.
 
 ### 4. Run
 
@@ -162,8 +192,8 @@ docker build -t medbot .
 docker run --rm -p 8080:8080 --env-file .env medbot
 ```
 
-The image installs CPU-only torch, runs as a non-root user, and serves through
-gunicorn with a `/healthz` healthcheck.
+The image is now ~180 MB (no torch), runs as a non-root user, and serves
+through gunicorn with a `/healthz` healthcheck.
 
 ## 🔌 API
 
@@ -174,8 +204,12 @@ gunicorn with a `/healthz` healthcheck.
 | `POST` | `/get` | `{"msg": "...", "location": "lat,lon"}` | see below |
 
 ```jsonc
-// RAG answer
-{ "type": "text", "response": "Asthma is ..." }
+// RAG answer (with citations)
+{
+  "type": "text",
+  "response": "Asthma is ...",
+  "sources": [{ "source": "Medical_book.pdf", "page": 395, "score": 0.54 }]
+}
 
 // Doctor search
 {
@@ -197,13 +231,23 @@ details are logged, never returned.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # 65 tests, ~1 second
+pytest            # 89 tests, ~1 second
 ruff check .
 ```
 
-The suite needs no API keys, no network, and no ML stack: `rag.py` imports
-torch lazily, so the web layer is tested in isolation with mocked boundaries.
-CI runs lint + tests on every push and builds the Docker image on `main`.
+The suite needs no API keys and no network: Pinecone, Gemini, and Google Places
+are replaced with fakes at the module boundary.
+
+## 🩺 Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| `401 Unauthorized` from Pinecone | A stale `PINECONE_API_KEY` in your OS environment. `.env` now wins; you can also remove it: `[Environment]::SetEnvironmentVariable("PINECONE_API_KEY",$null,"User")` |
+| Answers are irrelevant / score ~0.15 | The index contains vectors from a different model than `llama-text-embed-v2`. Run `python ingest.py --reset` |
+| No sources returned at all | Wrong namespace — check `PINECONE_NAMESPACE` and `index.describe_index_stats()` |
+| `Invalid API key` from Gemini | `GOOGLE_API_KEY` is a placeholder or expired |
+| `REQUEST_DENIED` from Places | Places API not enabled, billing off, or key restricted to another API |
+| `No module named torch` | You are on the old commit; this version has no local ML stack |
 
 ## 🔐 Security
 
@@ -217,9 +261,7 @@ CI runs lint + tests on every push and builds the Docker image on `main`.
 ## 🗺️ Roadmap
 
 - Conversation memory so follow-up questions keep context.
-- Source citations (page numbers) alongside RAG answers.
 - Streaming responses.
-- Migrate from `RetrievalQA` to LangChain LCEL.
 - Migrate to Places API (New) — the legacy Nearby Search endpoint is deprecated.
 - LLM-based intent routing instead of keyword matching.
 - Rate limiting and per-session quotas.

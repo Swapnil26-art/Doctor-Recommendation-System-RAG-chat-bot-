@@ -263,6 +263,14 @@ body {
     margin-top: 0.2rem;
 }
 
+.sources {
+    margin-top: 0.6rem;
+    padding-top: 0.45rem;
+    border-top: 1px dashed rgba(30, 64, 175, 0.25);
+    font-size: 0.72rem;
+    color: #475569;
+}
+
 .map-link {
     display: inline-block;
     margin-top: 0.6rem;

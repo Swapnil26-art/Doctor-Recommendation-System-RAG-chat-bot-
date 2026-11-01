@@ -1,6 +1,6 @@
-# Full runtime dependencies: web layer + RAG/ML stack.
+# Full runtime dependencies: web layer + retrieval/generation.
 #   python -m pip install -r requirements.txt
 #
-# Requires Python 3.12 or 3.13 (see requirements-ml.txt for why).
+# Requires Python 3.12+ (tested on 3.13 and 3.14).
 -r requirements-base.txt
--r requirements-ml.txt
+-r requirements-rag.txt

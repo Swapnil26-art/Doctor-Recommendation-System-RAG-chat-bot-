@@ -1,7 +1,8 @@
-# Development / CI dependencies. The ML stack is intentionally excluded:
-# rag.py imports torch only when a question is actually answered, which keeps
-# the test suite fast.
--r requirements-base.txt
+# Development / CI dependencies.
+#
+# The full runtime is small now (no torch), so CI installs exactly what
+# production installs — pinned versions are validated on every push.
+-r requirements.txt
 pytest==8.4.2
 pytest-cov==7.0.0
 ruff==0.14.3

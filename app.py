@@ -173,7 +173,11 @@ def _rag_response(message: str):
         # Log the real error server-side; never echo internals to the browser.
         logger.exception("RAG request failed")
         return jsonify({"type": "text", "response": RAG_ERROR_MESSAGE}), 502
-    return jsonify({"type": "text", "response": answer})
+
+    payload = {"type": "text", "response": answer.text}
+    if answer.sources:
+        payload["sources"] = [asdict(source) for source in answer.sources]
+    return jsonify(payload)
 
 
 app = create_app()

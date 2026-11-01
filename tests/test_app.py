@@ -56,10 +56,24 @@ def test_non_object_json_body_is_handled(client):
 
 
 def test_rag_path_returns_text(client, monkeypatch):
-    monkeypatch.setattr(rag, "answer_question", lambda question: "Diabetes is a condition.")
+    monkeypatch.setattr(
+        rag, "answer_question", lambda question: rag.Answer("Diabetes is a condition.", [])
+    )
     response = client.post("/get", json={"msg": "What is diabetes?"})
     assert response.status_code == 200
     assert response.get_json() == {"type": "text", "response": "Diabetes is a condition."}
+
+
+def test_rag_response_includes_sources(client, monkeypatch):
+    answer = rag.Answer(
+        "Asthma affects the airways.",
+        [rag.Source("Medical_book.pdf", 412, 0.87)],
+    )
+    monkeypatch.setattr(rag, "answer_question", lambda question: answer)
+
+    body = client.post("/get", json={"msg": "what is asthma"}).get_json()
+
+    assert body["sources"] == [{"source": "Medical_book.pdf", "page": 412, "score": 0.87}]
 
 
 def test_rag_failure_hides_internal_details(client, monkeypatch):
