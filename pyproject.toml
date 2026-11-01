@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app", "config", "places", "rag"]
+omit = ["tests/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".venv", "venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

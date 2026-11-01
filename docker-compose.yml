@@ -1,0 +1,15 @@
+services:
+  medbot:
+    build: .
+    image: medbot:local
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      # Reuse the downloaded embedding model between container restarts.
+      - hf-cache:/home/app/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  hf-cache:

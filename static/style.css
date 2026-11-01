@@ -1,107 +1,195 @@
-/* This file contains the CSS for the Medical AI Chatbot,
-including styles for the new doctor recommendation feature.
-*/
+/* MedBot — chat UI styles */
+
+:root {
+    --brand: #2563eb;
+    --brand-dark: #1d4ed8;
+    --brand-soft: #dbeafe;
+    --brand-text: #1e40af;
+    --surface: #ffffff;
+    --surface-muted: #f3f4f6;
+    --border: #d1d5db;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --danger: #b91c1c;
+    --success: #15803d;
+}
+
+* {
+    box-sizing: border-box;
+}
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: #f1f5f9;
-    color: #1e293b;
+    color: var(--text);
     margin: 0;
+    padding: 1.5rem 1rem;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .chat-container {
     max-width: 700px;
-    margin: 50px auto;
-    background-color: #ffffff;
+    margin: 1rem auto;
+    background-color: var(--surface);
     border-radius: 20px;
-    padding: 30px;
+    padding: 24px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    position: relative;
-    z-index: 10;
+}
+
+.chat-header {
+    text-align: center;
+    margin-bottom: 1.25rem;
 }
 
 .title {
-    text-align: center;
-    font-size: 1.75rem; /* Slightly smaller */
+    font-size: 1.75rem;
     font-weight: 700;
-    color: #2563eb;
-    margin-bottom: 1.5rem;
+    color: var(--brand);
+    margin: 0 0 0.25rem;
+}
+
+.subtitle {
+    margin: 0 0 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.location-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    padding: 0.3rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.location-status.pending {
+    background-color: #f1f5f9;
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+.location-status.ok {
+    background-color: #dcfce7;
+    color: var(--success);
+    border-color: #bbf7d0;
+}
+
+.location-status.error {
+    background-color: #fee2e2;
+    color: var(--danger);
+    border-color: #fecaca;
 }
 
 .chatbox {
-    height: 500px;
+    height: 460px;
     overflow-y: auto;
     padding: 1rem;
-    background-color: #f3f4f6;
+    background-color: var(--surface-muted);
     border-radius: 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border);
     scroll-behavior: smooth;
 }
 
-.user-message, .bot-message {
+.user-message,
+.bot-message {
     margin: 0.75rem 0;
-    padding: 0.75rem 1.25rem; /* Adjusted padding */
+    padding: 0.75rem 1.25rem;
     border-radius: 1.5rem;
     max-width: 85%;
     line-height: 1.6;
-    word-wrap: break-word;
-    font-size: 1rem; /* Standardized font size */
+    overflow-wrap: anywhere;
+    font-size: 1rem;
 }
 
 .user-message {
-    background-color: #2563eb;
+    background-color: var(--brand);
     color: #ffffff;
     margin-left: auto;
-    text-align: left; /* Keep text left-aligned */
     border-bottom-right-radius: 5px;
 }
 
 .bot-message {
-    background-color: #dbeafe;
-    color: #1e40af;
+    background-color: var(--brand-soft);
+    color: var(--brand-text);
     margin-right: auto;
-    text-align: left;
     border-bottom-left-radius: 5px;
+}
+
+.bot-message p:first-child {
+    margin-top: 0;
+}
+
+.bot-message ul {
+    margin: 0.4rem 0;
+    padding-left: 1.25rem;
+}
+
+.bot-message code {
+    background-color: rgba(37, 99, 235, 0.12);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    font-size: 0.9em;
 }
 
 .input-form {
     display: flex;
     margin-top: 1.25rem;
+    gap: 0.75rem;
 }
 
 .input-form input {
     flex: 1;
+    min-width: 0;
     padding: 1rem;
     border-radius: 9999px;
     border: 1px solid #94a3b8;
+    font-family: inherit;
     font-size: 1rem;
     outline: none;
-    transition: border-color 0.3s ease-in-out;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .input-form input:focus {
     border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .input-form button {
-    background-color: #2563eb;
+    background-color: var(--brand);
     color: #ffffff;
-    width: 50px; /* Fixed width */
-    height: 50px; /* Fixed height */
-    margin-left: 0.75rem;
+    width: 50px;
+    height: 50px;
+    flex: 0 0 50px;
     border: none;
-    border-radius: 50%; /* Make it a circle */
+    border-radius: 50%;
     font-size: 1.125rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     cursor: pointer;
-    transition: background-color 0.3s, transform 0.2s;
+    transition: background-color 0.2s, transform 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.input-form button:hover {
-    background-color: #1d4ed8;
+.input-form button:hover:not(:disabled) {
+    background-color: var(--brand-dark);
     transform: scale(1.05);
 }
 
@@ -110,15 +198,23 @@ body {
     cursor: not-allowed;
 }
 
-/* Spinner and Doctor Recommendation Styles */
-.spinner-container {
+.disclaimer {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 24px; /* Match spinner height */
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin: 0.75rem 0 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: var(--text-muted);
 }
 
+.disclaimer i {
+    margin-top: 0.15rem;
+}
+
+/* Loading spinner */
 .spinner {
+    display: block;
     border: 4px solid rgba(0, 0, 0, 0.1);
     border-radius: 50%;
     border-top: 4px solid #3b82f6;
@@ -128,13 +224,29 @@ body {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation-duration: 2.5s;
+    }
+    .chatbox {
+        scroll-behavior: auto;
+    }
+}
+
+/* Doctor results */
+.places-intro {
+    margin: 0 0 0.5rem;
+    font-weight: 600;
 }
 
 .doctor-card {
-    padding: 1rem;
-    background-color: #f3f4f6;
+    padding: 0.85rem 1rem;
+    background-color: var(--surface);
     border-radius: 0.5rem;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
     margin-top: 0.5rem;
@@ -142,22 +254,50 @@ body {
 }
 
 .doctor-card strong {
-    color: #1e40af;
+    color: var(--brand-text);
+}
+
+.doctor-meta {
+    font-size: 0.88rem;
+    color: #334155;
+    margin-top: 0.2rem;
 }
 
 .map-link {
     display: inline-block;
-    margin-top: 0.5rem;
+    margin-top: 0.6rem;
     padding: 0.25rem 0.75rem;
     background-color: #3b82f6;
-    color: #ffffff !important; /* Force color */
-    text-decoration: none; /* Remove underline */
+    color: #ffffff !important;
+    text-decoration: none;
     border-radius: 9999px;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    transition: background-color 0.3s;
+    transition: background-color 0.2s;
 }
 
 .map-link:hover {
-    background-color: #2563eb;
+    background-color: var(--brand-dark);
+}
+
+@media (max-width: 640px) {
+    body {
+        padding: 0.75rem;
+    }
+    .chat-container {
+        margin: 0 auto;
+        padding: 16px;
+        border-radius: 14px;
+    }
+    .title {
+        font-size: 1.4rem;
+    }
+    .chatbox {
+        height: calc(100vh - 300px);
+        min-height: 300px;
+    }
+    .user-message,
+    .bot-message {
+        max-width: 92%;
+    }
 }

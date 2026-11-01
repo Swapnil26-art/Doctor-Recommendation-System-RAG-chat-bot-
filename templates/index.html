@@ -3,100 +3,264 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medical AI Chatbot</title>
+    <meta name="description" content="MedBot — medical Q&A and nearby doctor recommendations.">
+    <title>MedBot — Your Medical Assistant</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="chat-container">
-        <h1 class="title"><i class="fas fa-stethoscope"></i> MedBot - Your Medical Assistant</h1>
-        <div id="chatbox" class="chatbox">
-            <div class="bot-message">Hello! I'm MedBot. Ask me any medical question, or if you need a doctor, I can try to find one for you.</div>
-        </div>
+    <main class="chat-container">
+        <header class="chat-header">
+            <h1 class="title"><i class="fas fa-stethoscope" aria-hidden="true"></i> MedBot</h1>
+            <p class="subtitle">Medical questions and nearby doctor recommendations</p>
+            <button type="button" id="location-status" class="location-status pending"
+                    title="Click to retry location access">
+                <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
+                <span id="location-text">Getting your location…</span>
+            </button>
+        </header>
 
-        <form id="chat-form" class="input-form">
-            <input type="text" id="user-input" placeholder="Type your question..." autocomplete="off" required>
-            <button type="submit" id="send-button">
-                <i class="fas fa-paper-plane"></i>
+        <div id="chatbox" class="chatbox" role="log" aria-live="polite" aria-label="Conversation"></div>
+
+        <p class="disclaimer">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            MedBot provides general information only and is not a substitute for professional medical advice.
+        </p>
+
+        <form id="chat-form" class="input-form" autocomplete="off">
+            <label class="sr-only" for="user-input">Your question</label>
+            <input type="text" id="user-input" name="msg" maxlength="1000"
+                   placeholder="Ask a medical question, or find a doctor near me…" required>
+            <button type="submit" id="send-button" aria-label="Send message">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
             </button>
         </form>
-    </div>
+    </main>
 
     <script>
+        "use strict";
+
         const form = document.getElementById("chat-form");
         const userInput = document.getElementById("user-input");
         const chatbox = document.getElementById("chatbox");
         const sendButton = document.getElementById("send-button");
+        const locationButton = document.getElementById("location-status");
+        const locationText = document.getElementById("location-text");
 
         let userLocation = null;
 
-        // --- NEW: Ask for location on page load ---
-        window.onload = () => {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                        console.log("Location acquired:", userLocation);
-                    },
-                    (error) => {
-                        console.warn("User denied location access.", error.message);
-                        addBotMessage("To find doctors, you'll need to allow location access in your browser settings.");
-                    }
-                );
-            } else {
-                console.error("Geolocation is not supported by this browser.");
-                addBotMessage("Your browser doesn't support geolocation, so I can't find nearby doctors.");
-            }
-        };
+        /* ---------- Safe rendering helpers ----------
+           Everything that reaches innerHTML has been escaped first, so neither
+           user text nor third-party API data can inject markup. */
 
-        function addBotMessage(message) {
-            chatbox.innerHTML += `<div class="bot-message">${message}</div>`;
+        const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+        }
+
+        function inlineFormat(text) {
+            return text
+                .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>")
+                .replace(/`([^`]+)`/g, "<code>$1</code>");
+        }
+
+        function renderMarkdown(raw) {
+            const lines = escapeHtml(raw).split(/\r?\n/);
+            const html = [];
+            let listItems = [];
+
+            const flushList = () => {
+                if (listItems.length) {
+                    html.push("<ul>" + listItems.join("") + "</ul>");
+                    listItems = [];
+                }
+            };
+
+            for (const line of lines) {
+                const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+                const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+                if (bullet || numbered) {
+                    listItems.push("<li>" + inlineFormat(bullet ? bullet[1] : numbered[1]) + "</li>");
+                    continue;
+                }
+                flushList();
+                if (line.trim() === "") {
+                    html.push("<br>");
+                    continue;
+                }
+                html.push(inlineFormat(line) + "<br>");
+            }
+            flushList();
+            return html.join("");
+        }
+
+        function scrollToBottom() {
             chatbox.scrollTop = chatbox.scrollHeight;
         }
 
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            const userMsg = userInput.value;
-            if (!userMsg.trim()) return;
+        function addMessage(role, contentHtml) {
+            const bubble = document.createElement("div");
+            bubble.className = role === "user" ? "user-message" : "bot-message";
+            bubble.innerHTML = contentHtml;
+            chatbox.appendChild(bubble);
+            scrollToBottom();
+            return bubble;
+        }
 
-            chatbox.innerHTML += `<div class="user-message">${userMsg}</div>`;
+        function addUserMessage(text) {
+            addMessage("user", escapeHtml(text).replace(/\r?\n/g, "<br>"));
+        }
+
+        function addBotText(text) {
+            addMessage("bot", renderMarkdown(text));
+        }
+
+        function isSafeMapUrl(value) {
+            try {
+                const url = new URL(value);
+                return url.protocol === "https:" && /(^|\.)google\.com$/.test(url.hostname);
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function addPlaceResults(data) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "bot-message";
+
+            const intro = document.createElement("p");
+            intro.className = "places-intro";
+            intro.textContent = data.intro || "Here are some places near you:";
+            wrapper.appendChild(intro);
+
+            (data.places || []).forEach((place) => {
+                const card = document.createElement("div");
+                card.className = "doctor-card";
+
+                const name = document.createElement("strong");
+                name.textContent = place.name;
+                card.appendChild(name);
+
+                const address = document.createElement("div");
+                address.className = "doctor-meta";
+                address.textContent = place.address;
+                card.appendChild(address);
+
+                const distance = document.createElement("div");
+                distance.className = "doctor-meta";
+                distance.textContent = place.distance_km + " km away";
+                card.appendChild(distance);
+
+                if (place.rating) {
+                    const rating = document.createElement("div");
+                    rating.className = "doctor-meta";
+                    const count = place.user_ratings_total ? " (" + place.user_ratings_total + " reviews)" : "";
+                    rating.textContent = "★ " + place.rating + count;
+                    card.appendChild(rating);
+                }
+
+                if (isSafeMapUrl(place.map_url)) {
+                    const link = document.createElement("a");
+                    link.className = "map-link";
+                    link.href = place.map_url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    link.textContent = "View on map";
+                    card.appendChild(link);
+                }
+
+                wrapper.appendChild(card);
+            });
+
+            chatbox.appendChild(wrapper);
+            scrollToBottom();
+        }
+
+        /* ---------- Location ---------- */
+
+        function setLocationState(state, message) {
+            locationButton.className = "location-status " + state;
+            locationText.textContent = message;
+        }
+
+        function requestLocation() {
+            if (!navigator.geolocation) {
+                setLocationState("error", "Location not supported — doctor search unavailable");
+                return;
+            }
+            setLocationState("pending", "Getting your location…");
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    userLocation = position.coords.latitude + "," + position.coords.longitude;
+                    setLocationState("ok", "Location ready — doctor search enabled");
+                },
+                () => {
+                    userLocation = null;
+                    setLocationState("error", "Location blocked — allow access to find doctors");
+                },
+                { timeout: 10000, maximumAge: 600000 }
+            );
+        }
+
+        locationButton.addEventListener("click", requestLocation);
+
+        /* ---------- Chat ---------- */
+
+        function setBusy(busy) {
+            sendButton.disabled = busy;
+            userInput.disabled = busy;
+        }
+
+        function showLoading() {
+            return addMessage("bot", '<span class="spinner" role="status" aria-label="Thinking"></span>');
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            addUserMessage(message);
             userInput.value = "";
-            chatbox.scrollTop = chatbox.scrollHeight;
-            
-            // Show loading spinner
-            const loadingDiv = document.createElement("div");
-            loadingDiv.className = "bot-message";
-            loadingDiv.innerHTML = `<div classclass="spinner-container"><div class="spinner"></div></div>`;
-            chatbox.appendChild(loadingDiv);
-            chatbox.scrollTop = chatbox.scrollHeight;
-            
-            sendButton.disabled = true;
-            
-            const payload = {
-                msg: userMsg,
-                location: userLocation // Send location with every request
-            };
+            setBusy(true);
+            const pending = showLoading();
 
             try {
-                const res = await fetch("/get", {
+                const response = await fetch("/get", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ msg: message, location: userLocation })
                 });
+                const data = await response.json().catch(() => null);
+                pending.remove();
 
-                // --- THIS IS THE FIX for {"response":...} ---
-                const data = await res.json();
-                loadingDiv.innerHTML = data.response; // Replace spinner with response
-
+                if (!response.ok || !data) {
+                    addBotText("Sorry, I'm having a connection issue. Please try again.");
+                } else if (data.type === "places") {
+                    addPlaceResults(data);
+                } else {
+                    addBotText(data.response || "Sorry, I couldn't process that.");
+                }
             } catch (error) {
-                console.error("Fetch error:", error);
-                loadingDiv.innerHTML = "Sorry, I'm having a connection issue. Please try again.";
+                console.error("Request failed:", error);
+                pending.remove();
+                addBotText("Sorry, I'm having a connection issue. Please try again.");
+            } finally {
+                setBusy(false);
+                userInput.focus();
             }
-            
-            sendButton.disabled = false;
-            chatbox.scrollTop = chatbox.scrollHeight;
-        };
+        });
+
+        /* ---------- Boot ---------- */
+
+        addBotText(
+            "Hello! I'm MedBot. Ask me any medical question, or tell me what's wrong " +
+            "and I'll look for a suitable doctor near you."
+        );
+        requestLocation();
     </script>
 </body>
 </html>

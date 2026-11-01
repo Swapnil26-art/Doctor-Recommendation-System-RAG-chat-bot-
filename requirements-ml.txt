@@ -1,0 +1,13 @@
+# The RAG / ML stack. These packages are why Python 3.12 or 3.13 is required:
+# torch and langchain-pinecone publish no wheels for Python 3.14 yet.
+langchain==0.3.27
+langchain-core==0.3.76
+langchain-community==0.3.30
+langchain-pinecone==0.2.13
+langchain-google-genai==2.1.10
+langchain-huggingface==0.3.1
+langchain-text-splitters==0.3.9
+pinecone==6.0.2
+sentence-transformers==5.1.2
+torch==2.8.0
+pypdf==5.9.0

@@ -1,0 +1,7 @@
+# Lightweight dependencies — enough to import and test the web layer.
+# Install this set for local development of routes/UI; add requirements-ml.txt
+# when you need the actual RAG pipeline to run.
+Flask==3.1.2
+python-dotenv==1.2.3
+requests==2.32.5
+geopy==2.4.1
