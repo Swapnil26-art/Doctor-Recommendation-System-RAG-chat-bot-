@@ -40,7 +40,8 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      # Validates that the pinned ML stack still resolves and installs.
+      # Validates that the pinned runtime requirements still resolve and that
+      # the image builds and starts as the non-root user.
       - name: Build image
         uses: docker/build-push-action@v6
         with:
