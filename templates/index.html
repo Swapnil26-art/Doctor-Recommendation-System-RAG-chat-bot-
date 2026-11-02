@@ -10,21 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="wrapper">
-        <!-- Sidebar for doctor search -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <h3><i class="fas fa-search-heart" aria-hidden="true"></i> Find Doctors</h3>
-            </div>
-            <div class="sidebar-body">
-                <p class="sidebar-subtext">Enter a condition or specialty</p>
-                <input type="text" id="condition-input" placeholder="e.g. cardiologist, chest pain, hospital" />
-                <button class="btn-generate" id="generate-btn">
-                    <i class="fas fa-search" aria-hidden="true"></i> Generate
-                </button>
-            </div>
-        </aside>
-
+    <div class="app-wrapper">
+        <!-- Chat area on the left -->
         <main class="chat-container">
             <header class="chat-header">
                 <h1 class="title"><i class="fas fa-stethoscope" aria-hidden="true"></i> MedBot</h1>
@@ -52,9 +39,23 @@
                 </button>
             </form>
         </main>
-    </div>
 
-    <script>
+        <!-- Find Doctors panel on the right -->
+        <div class="find-doctors-panel" id="findDoctorsPanel">
+            <div class="panel-header">
+                <h3><i class="fas fa-search-heart" aria-hidden="true"></i> Find Doctors</h3>
+                <button class="panel-close" id="panelClose">&times;</button>
+            </div>
+            <div class="panel-body">
+                <p class="panel-subtext">Enter a condition or specialty</p>
+                <input type="text" id="condition-input" placeholder="e.g. cardiologist, chest pain, hospital" />
+                <button class="btn-generate" id="generate-btn">
+                    <i class="fas fa-search" aria-hidden="true"></i> Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
         "use strict";
 
         const form = document.getElementById("chat-form");
@@ -307,6 +308,20 @@
             "and I'll look for a suitable doctor near you."
         );
         requestLocation();
+
+        /* ---------- Toggle Find Doctors panel ---------- */
+
+        const panel = document.getElementById("findDoctorsPanel");
+        const panelClose = document.getElementById("panelClose");
+
+        // Open/close panel
+        panelClose.addEventListener("click", () => {
+            panel.style.right = "-320px";
+        });
+
+        // Show panel when clicking the location button or chat input area
+        // (panel starts hidden off-screen, user can click a show button if needed)
+        // For now, it's visible by default on desktop, hidden on mobile
 
         /* ---------- Generate doctor search ---------- */
 
