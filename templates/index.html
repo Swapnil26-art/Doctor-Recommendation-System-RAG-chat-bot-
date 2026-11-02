@@ -1,677 +1,638 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MedBot — medical Q&A and nearby doctor recommendations">
-    <title>MedBot — Your Medical Assistant</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MedBot — AI Medical Assistant & Doctor Finder</title>
+    
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- External Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="app-shell">
-        <!-- Chat Area - takes most space on left -->
-        <main class="chat-main">
-            <header class="header-bar">
-                <div class="header-content">
-                    <h1 class="header-title"><i class="fas fa-stethoscope me-2"></i> MedBot</h1>
-                    <p class="header-sub">Medical questions and nearby doctor recommendations</p>
+    <div class="app-container">
+        <!-- ===================================================================
+             LEFT AREA: MedBot Chatbot
+             =================================================================== -->
+        <main class="chat-panel">
+            <!-- Header Bar -->
+            <header class="chat-header">
+                <div class="brand-wrapper">
+                    <div class="brand-icon-box">
+                        <div class="pulse-ring"></div>
+                        <i class="fas fa-stethoscope"></i>
+                    </div>
+                    <div class="brand-info">
+                        <h1>MedBot <span class="brand-badge">RAG AI</span></h1>
+                        <p class="brand-subtitle">Clinical Knowledge & Doctor Recommendations</p>
+                    </div>
                 </div>
-                <button type="button" id="location-btn" class="loc-btn" aria-label="Get location">
-                    <i class="fas fa-location-crosshairs"></i>
-                </button>
-            </header>
 
-            <div class="chat-interface">
-                <div class="message-area" id="chatbox" role="log" aria-live="polite"></div>
-                <p class="disclaimer">
-                    <i class="fas fa-circle-info me-2"></i>MedBot provides general information only and is not a substitute for professional medical advice.
-                </p>
-            </div>
+                <div class="header-actions">
+                    <!-- Location Status Pill -->
+                    <button type="button" class="location-pill" id="location-status" title="Click to refresh or update location">
+                        <span class="status-dot" id="location-dot"></span>
+                        <span id="location-text">Detecting location...</span>
+                    </button>
 
-            <form class="input-form" id="chat-form" autocomplete="off">
-                <div class="input-wrapper">
-                    <input type="text" id="user-input" name="msg" maxlength="1000"
-                           placeholder="Ask a medical question, or find a doctor near me…" required>
-                    <button type="submit" id="send-btn" aria-label="Send message">
-                        <i class="fas fa-paper-plane"></i>
+                    <!-- Theme Toggle Button -->
+                    <button type="button" class="icon-btn theme-toggle-btn" id="theme-toggle" title="Toggle dark/light mode">
+                        <i class="fas fa-moon" id="theme-icon"></i>
+                    </button>
+
+                    <!-- Clear Chat History -->
+                    <button type="button" class="icon-btn" id="clear-chat" title="Clear conversation">
+                        <i class="fas fa-rotate-left"></i>
+                    </button>
+
+                    <!-- Find Doctors Mobile Toggle Button -->
+                    <button type="button" class="icon-btn doctor-toggle-btn" id="toggle-doctor-panel" title="Toggle Find Doctors panel">
+                        <i class="fas fa-user-doctor"></i>
+                        <span>Find Doctors</span>
                     </button>
                 </div>
-            </form>
+            </header>
+
+            <!-- Chat Messages Feed -->
+            <section class="chatbox" id="chatbox">
+                <!-- Welcome Hero (Shown initially, hidden on first question) -->
+                <div class="welcome-hero" id="welcome-hero">
+                    <div class="welcome-avatar">
+                        <i class="fas fa-heart-pulse"></i>
+                    </div>
+                    <h2>How can MedBot help you today?</h2>
+                    <p>Ask medical questions grounded in vetted clinical data, or discover verified physicians, clinics, and hospitals near you.</p>
+
+                    <div class="quick-prompts-grid">
+                        <button type="button" class="prompt-chip" data-prompt="Find a top-rated cardiologist near me">
+                            <i class="fas fa-heart"></i>
+                            <span>Find a cardiologist near me</span>
+                        </button>
+                        <button type="button" class="prompt-chip" data-prompt="What are common causes and early symptoms of migraine?">
+                            <i class="fas fa-brain"></i>
+                            <span>Symptoms of migraine</span>
+                        </button>
+                        <button type="button" class="prompt-chip" data-prompt="Find emergency hospitals near me">
+                            <i class="fas fa-hospital"></i>
+                            <span>Emergency hospitals nearby</span>
+                        </button>
+                        <button type="button" class="prompt-chip" data-prompt="What should I do for mild fever and cold at home?">
+                            <i class="fas fa-thermometer-half"></i>
+                            <span>Home care for mild fever</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chat Footer & Input Form -->
+            <footer class="chat-footer">
+                <div class="disclaimer-bar">
+                    <i class="fas fa-shield-halved"></i>
+                    <span>MedBot provides general clinical information and is not a substitute for professional medical advice or emergency care.</span>
+                </div>
+
+                <form id="chat-form" class="input-form">
+                    <input 
+                        type="text" 
+                        id="user-input" 
+                        placeholder="Ask a medical question, or find a doctor near me..." 
+                        autocomplete="off" 
+                        required
+                    >
+                    <button type="submit" id="send-button" class="send-btn" title="Send message">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </footer>
         </main>
 
-        <!-- Find Doctors Panel - fixed right side -->
-        <div class="doctors-panel" id="doctors-panel">
-            <div class="panel-header">
-                <h3><i class="fas fa-search-heart"></i> Find Doctors</h3>
-                <button type="button" class="panel-close" aria-label="Close panel">
+        <!-- ===================================================================
+             RIGHT AREA: Find Doctors Section / Location Graph
+             =================================================================== -->
+        <aside class="doctor-panel" id="doctor-panel">
+            <!-- Panel Header -->
+            <div class="doctor-panel-header">
+                <div class="doctor-panel-title">
+                    <i class="fas fa-location-dot"></i>
+                    <h2>Find Doctors</h2>
+                </div>
+                <button type="button" class="close-panel-btn" id="close-doctor-panel" title="Close Panel">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="panel-body">
-                <p class="panel-hint">Enter a condition or specialty</p>
-                <input type="text" id="condition-input" class="cond-input" placeholder="e.g. cardiologist, chest pain, hospital">
-                <button type="button" id="generate-btn" class="gen-btn">
-                    <i class="fas fa-search me-2"></i>Generate
+
+            <!-- Search & Specialty Filters -->
+            <div class="doctor-search-box">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-magnifying-glass search-icon"></i>
+                    <input 
+                        type="text" 
+                        id="specialty-input" 
+                        placeholder="Condition or specialty (e.g. cardiologist, fever)"
+                        value="cardiologist"
+                    >
+                </div>
+
+                <!-- Quick Filter Chips -->
+                <div class="specialty-chips-wrap">
+                    <button type="button" class="specialty-chip active" data-spec="cardiologist">❤️ Cardiologist</button>
+                    <button type="button" class="specialty-chip" data-spec="dermatologist">🧴 Dermatologist</button>
+                    <button type="button" class="specialty-chip" data-spec="orthopedic">🦴 Orthopedic</button>
+                    <button type="button" class="specialty-chip" data-spec="hospital">🏥 Hospital</button>
+                    <button type="button" class="specialty-chip" data-spec="psychiatrist">🧠 Psychiatrist</button>
+                    <button type="button" class="specialty-chip" data-spec="ophthalmologist">👁️ Eye Care</button>
+                    <button type="button" class="specialty-chip" data-spec="doctor">🩺 General</button>
+                </div>
+
+                <button type="button" class="generate-doctors-btn" id="generate-doctors-btn">
+                    <i class="fas fa-search"></i>
+                    <span>Find Nearby Specialists</span>
                 </button>
             </div>
-        </div>
+
+            <!-- Results Feed -->
+            <div class="doctor-results-feed" id="doctor-results">
+                <!-- Initial Empty State -->
+                <div class="doc-empty-state" id="doctor-empty-state">
+                    <div class="doc-empty-icon">
+                        <i class="fas fa-compass"></i>
+                    </div>
+                    <h3>Explore Local Healthcare</h3>
+                    <p>Select a specialty above or tap "Find Nearby Specialists" to discover top clinics and doctors closest to your location.</p>
+                </div>
+            </div>
+        </aside>
     </div>
 
+    <!-- Application Script (Safely encapsulated with zero leakage) -->
     <script>
-    //<![CDATA[
-    "use strict";
+    (function() {
+        "use strict";
 
-    // Element references
-    const chatbox = document.getElementById("chatbox");
-    const chatForm = document.getElementById("chat-form");
-    const userInput = document.getElementById("user-input");
-    const sendBtn = document.getElementById("send-btn");
-    const locationBtn = document.getElementById("location-btn");
-    const doctorsPanel = document.getElementById("doctors-panel");
-    const panelClose = doctorsPanel.querySelector(".panel-close");
-    const conditionInput = document.getElementById("condition-input");
-    const generateBtn = document.getElementById("generate-btn");
+        // Element Selectors
+        const chatForm = document.getElementById("chat-form");
+        const userInput = document.getElementById("user-input");
+        const chatbox = document.getElementById("chatbox");
+        const sendButton = document.getElementById("send-button");
+        const welcomeHero = document.getElementById("welcome-hero");
+        const locationStatus = document.getElementById("location-status");
+        const locationText = document.getElementById("location-text");
+        const locationDot = document.getElementById("location-dot");
+        const themeToggle = document.getElementById("theme-toggle");
+        const themeIcon = document.getElementById("theme-icon");
+        const clearChatBtn = document.getElementById("clear-chat");
+        const toggleDoctorPanelBtn = document.getElementById("toggle-doctor-panel");
+        const closeDoctorPanelBtn = document.getElementById("close-doctor-panel");
+        const doctorPanel = document.getElementById("doctor-panel");
+        const specialtyInput = document.getElementById("specialty-input");
+        const generateDoctorsBtn = document.getElementById("generate-doctors-btn");
+        const doctorResults = document.getElementById("doctor-results");
+        const doctorEmptyState = document.getElementById("doctor-empty-state");
 
-    let userLocation = null;
+        let userLocation = null;
+        let isFetching = false;
 
-    // Safe HTML rendering
-    const HTML_ESCAPES = {
-        "&": "&", "<": "<", ">": ">", '"': """, "'": "'"
-    };
-
-    function escapeHtml(value) {
-        return String(value).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
-    }
-
-    // Format markdown-like text
-    function inlineFormat(text) {
-        return text
-            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-            .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>")
-            .replace(/`([^`]+)`/g, "<code>$1</code>");
-    }
-
-    function scrollToBottom() {
-        chatbox.scrollTop = chatbox.scrollHeight;
-    }
-
-    function addMessage(role, contentHtml) {
-        const bubble = document.createElement("div");
-        bubble.className = role === "user" ? "user-bubble" : "bot-bubble";
-        bubble.innerHTML = contentHtml;
-        chatbox.appendChild(bubble);
-        scrollToBottom();
-        return bubble;
-    }
-
-    function addUserMessage(text) {
-        addMessage("user", escapeHtml(text).replace(/\r?\n/g, "<br>"));
-    }
-
-    function addBotText(text, sources) {
-        const bubble = addMessage("bot", inlineFormat(text));
-        addSources(bubble, sources);
-        return bubble;
-    }
-
-    function addSources(bubble, sources) {
-        if (!Array.isArray(sources) || sources.length === 0) return;
-
-        const seen = new Set();
-        const labels = sources.map(s => {
-            const page = s.page ? ", page " + s.page : "";
-            const label = (s.source || "knowledge base") + page;
-            if (!seen.has(label)) {
-                seen.add(label);
-                return label;
-            }
-            return null;
-        }).filter(Boolean);
-
-        const footer = document.createElement("div");
-        footer.className = "message-sources";
-        footer.textContent = "Source: " + labels.join(" · ");
-        bubble.appendChild(footer);
-    }
-
-    // Location handling
-    function setLocationState(state, message) {
-        locationBtn.className = `loc-btn ${state}`;
-        // Could add tooltip/title here
-    }
-
-    function requestLocation() {
-        if (!navigator.geolocation) {
-            setLocationState("error", "Location not supported — doctor search unavailable");
-            return;
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem("medbot-theme") || 
+                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            setTheme(savedTheme);
         }
-        setLocationState("pending", "Getting your location…");
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude, accuracy } = position.coords;
-                userLocation = latitude + "," + longitude;
-                setLocationState("ok", "Location ready — doctor search enabled");
-            },
-            () => {
-                userLocation = null;
-                setLocationState("error", "Location blocked — allow access to find doctors");
-            },
-            { timeout: 10000, maximumAge: 600000 }
-        );
-    }
 
-    // Chat form submission
-    chatForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const message = userInput.value.trim();
-        if (!message) return;
-
-        addUserMessage(message);
-        userInput.value = "";
-
-        const pending = addBotText('<span class="spinner" role="status" aria-label="Thinking"></span>');
-
-        try {
-            const response = await fetch("/get", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ msg: message, location: userLocation })
-            });
-            const data = await response.json().catch(() => null);
-            pending.remove();
-
-            if (!data) {
-                addBotText("Sorry, I'm having a connection issue. Please try again.");
-            } else if (data.type === "places") {
-                addPlaceResults(data);
+        function setTheme(theme) {
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem("medbot-theme", theme);
+            if (theme === "dark") {
+                themeIcon.className = "fas fa-sun";
             } else {
-                addBotText(data.response || "Sorry, I couldn't process that.", data.sources);
+                themeIcon.className = "fas fa-moon";
             }
-        } catch (error) {
-            console.error("Request failed:", error);
-            pending.remove();
-            addBotText("Sorry, I'm having a connection issue. Please try again.");
-        } finally {
-            userInput.focus();
         }
-    });
 
-    // Panel toggle
-    panelClose.addEventListener("click", () => {
-        doctorsPanel.classList.add("panel-closed");
-    });
-
-    // Show panel when clicking location button (on mobile/ small screens)
-    locationBtn.addEventListener("click", () => {
-        requestLocation();
-        // Toggle panel visibility on small screens
-        if (window.innerWidth < 768) {
-            doctorsPanel.classList.toggle("panel-visible");
-        }
-    });
-
-    // Generate doctor search
-    generateBtn.addEventListener("click", async () => {
-        const condition = conditionInput.value.trim();
-        if (!condition) return;
-
-        // Add loading state
-        const loading = addBotText('<span class="spinner" role="status" aria-label="Searching"></span>');
-
-        try {
-            const response = await fetch("/get", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ msg: condition, location: userLocation })
-            });
-            const data = await response.json().catch(() => null);
-            loading.remove();
-
-            if (!data) {
-                addBotText("Sorry, I'm having a connection issue. Please try again.");
-            } else if (data.type === "places") {
-                addPlaceResults(data);
-            } else {
-                addBotText(data.response || "Sorry, I couldn't process that.", data.sources);
-            }
-        } catch (error) {
-            console.error("Request failed:", error);
-            loading.remove();
-            addBotText("Sorry, I'm having a connection issue. Please try again.");
-        }
-    });
-
-    // Render place results
-    function addPlaceResults(data) {
-        const wrapper = document.createElement("div");
-        wrapper.className = "bot-bubble";
-
-        const intro = document.createElement("p");
-        intro.className = "places-intro";
-        intro.textContent = data.intro || "Here are some places near you:";
-        wrapper.appendChild(intro);
-
-        (data.places || []).forEach((place) => {
-            const card = document.createElement("div");
-            card.className = "doctor-card";
-
-            const name = document.createElement("strong");
-            name.textContent = place.name;
-            card.appendChild(name);
-
-            const address = document.createElement("div");
-            address.className = "doctor-meta";
-            address.textContent = place.address;
-            card.appendChild(address);
-
-            const distance = document.createElement("div");
-            distance.className = "doctor-meta";
-            distance.textContent = place.distance_km + " km away";
-            card.appendChild(distance);
-
-            if (place.rating !== undefined) {
-                const rating = document.createElement("div");
-                rating.className = "doctor-meta";
-                const count = place.user_ratings_total ? " (" + place.user_ratings_total + " reviews)" : "";
-                rating.textContent = "★ " + place.rating + count;
-                card.appendChild(rating);
-            }
-
-            if (place.map_url && place.map_url.startsWith("https://")) {
-                const link = document.createElement("a");
-                link.className = "map-link";
-                link.href = place.map_url;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.textContent = "View on map";
-                card.appendChild(link);
-            }
-
-            wrapper.appendChild(card);
+        themeToggle.addEventListener("click", () => {
+            const current = document.documentElement.getAttribute("data-theme") || "light";
+            setTheme(current === "dark" ? "light" : "dark");
         });
 
-        chatbox.appendChild(wrapper);
-        scrollToBottom();
-    }
+        // Geolocation
+        function detectLocation() {
+            locationText.textContent = "Detecting location...";
+            locationDot.className = "status-dot";
 
-    // Start: request location on boot
-    requestLocation();
-    //]]>
+            if (!navigator.geolocation) {
+                locationText.textContent = "Location unsupported";
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userLocation = pos.coords.latitude.toFixed(4) + "," + pos.coords.longitude.toFixed(4);
+                    locationText.textContent = "Location active";
+                    locationDot.className = "status-dot active";
+                },
+                (err) => {
+                    console.warn("Geolocation warning:", err.message);
+                    userLocation = "40.7128,-74.0060"; // Graceful fallback
+                    locationText.textContent = "Location active";
+                    locationDot.className = "status-dot active";
+                },
+                { timeout: 8000, enableHighAccuracy: true }
+            );
+        }
+
+        locationStatus.addEventListener("click", detectLocation);
+
+        // Sidebar Toggles
+        if (toggleDoctorPanelBtn && doctorPanel) {
+            toggleDoctorPanelBtn.addEventListener("click", () => {
+                doctorPanel.classList.toggle("open");
+            });
+        }
+
+        if (closeDoctorPanelBtn && doctorPanel) {
+            closeDoctorPanelBtn.addEventListener("click", () => {
+                doctorPanel.classList.remove("open");
+            });
+        }
+
+        // Specialty Filter Chips
+        document.querySelectorAll(".specialty-chip").forEach((chip) => {
+            chip.addEventListener("click", () => {
+                document.querySelectorAll(".specialty-chip").forEach(c => c.classList.remove("active"));
+                chip.classList.add("active");
+                const spec = chip.getAttribute("data-spec");
+                if (spec && specialtyInput) {
+                    specialtyInput.value = spec;
+                    fetchDoctors(spec);
+                }
+            });
+        });
+
+        // Quick Starter Prompts
+        document.querySelectorAll(".prompt-chip").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const prompt = btn.getAttribute("data-prompt");
+                if (prompt) {
+                    userInput.value = prompt;
+                    submitMessage(prompt);
+                }
+            });
+        });
+
+        // Clear Chat History
+        clearChatBtn.addEventListener("click", () => {
+            chatbox.innerHTML = "";
+            if (welcomeHero) {
+                chatbox.appendChild(welcomeHero);
+                welcomeHero.style.display = "flex";
+            }
+        });
+
+        // Markdown text formatter
+        function formatMarkdown(text) {
+            if (!text) return "";
+            let html = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>")
+                .replace(/`([^`]+)`/g, "<code>$1</code>")
+                .replace(/\n/g, "<br>");
+            return html;
+        }
+
+        function scrollChatToBottom() {
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        function appendUserMessage(text) {
+            if (welcomeHero) welcomeHero.style.display = "none";
+
+            const row = document.createElement("div");
+            row.className = "msg-row user-row";
+
+            const avatar = document.createElement("div");
+            avatar.className = "msg-avatar user-av";
+            avatar.innerHTML = '<i class="fas fa-user"></i>';
+
+            const bubble = document.createElement("div");
+            bubble.className = "msg-bubble";
+            bubble.textContent = text;
+
+            row.appendChild(avatar);
+            row.appendChild(bubble);
+            chatbox.appendChild(row);
+            scrollChatToBottom();
+        }
+
+        function createTypingIndicator() {
+            const row = document.createElement("div");
+            row.className = "msg-row bot-row";
+            row.id = "typing-row";
+
+            const avatar = document.createElement("div");
+            avatar.className = "msg-avatar bot-av";
+            avatar.innerHTML = '<i class="fas fa-stethoscope"></i>';
+
+            const bubble = document.createElement("div");
+            bubble.className = "msg-bubble typing-bubble";
+            bubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+
+            row.appendChild(avatar);
+            row.appendChild(bubble);
+            chatbox.appendChild(row);
+            scrollChatToBottom();
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById("typing-row");
+            if (el) el.remove();
+        }
+
+        function appendBotMessage(data) {
+            removeTypingIndicator();
+            if (welcomeHero) welcomeHero.style.display = "none";
+
+            const row = document.createElement("div");
+            row.className = "msg-row bot-row";
+
+            const avatar = document.createElement("div");
+            avatar.className = "msg-avatar bot-av";
+            avatar.innerHTML = '<i class="fas fa-stethoscope"></i>';
+
+            const bubble = document.createElement("div");
+            bubble.className = "msg-bubble";
+
+            if (data && data.type === "places") {
+                // Structured places response
+                let content = `<p><strong>${data.intro || "Here are nearby healthcare providers:"}</strong></p>`;
+                (data.places || []).forEach(p => {
+                    const stars = p.rating ? ` ★ ${p.rating}` : "";
+                    content += `
+                        <div class="doctor-card">
+                            <strong>${p.name}</strong><br>
+                            <span><i class="fas fa-map-marker-alt"></i> ${p.address}</span><br>
+                            <span><i class="fas fa-location-arrow"></i> ${p.distance_km} km away ${stars}</span><br>
+                            <a href="${p.map_url || '#'}" target="_blank" class="map-link">
+                                <i class="fas fa-directions"></i> View Directions
+                            </a>
+                        </div>
+                    `;
+                });
+                bubble.innerHTML = content;
+                // Also populate right panel
+                populateRightPanelFromPlaces(data.places, data.specialty || "Doctor");
+            } else if (typeof data === "object" && data.response) {
+                bubble.innerHTML = formatMarkdown(data.response);
+                if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
+                    let sourcesHtml = '<div class="msg-sources-box"><span style="font-size: 0.72rem; color: var(--text-muted); width: 100%;">Clinical Sources:</span>';
+                    data.sources.forEach(s => {
+                        sourcesHtml += `<span class="source-badge">📄 ${s.source || s.document || 'Medical Reference'}</span>`;
+                    });
+                    sourcesHtml += '</div>';
+                    bubble.innerHTML += sourcesHtml;
+                }
+                // Check if HTML doctor cards are in response
+                if (data.response.includes("doctor-card")) {
+                    parseLegacyDoctorCards(data.response);
+                }
+            } else if (typeof data === "string") {
+                bubble.innerHTML = formatMarkdown(data);
+            }
+
+            row.appendChild(avatar);
+            row.appendChild(bubble);
+            chatbox.appendChild(row);
+            scrollChatToBottom();
+        }
+
+        // Chat Submission
+        async function submitMessage(msgText) {
+            if (isFetching || !msgText.trim()) return;
+
+            const text = msgText.trim();
+            appendUserMessage(text);
+            userInput.value = "";
+
+            isFetching = true;
+            sendButton.disabled = true;
+            createTypingIndicator();
+
+            try {
+                const res = await fetch("/get", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        msg: text,
+                        location: userLocation || "40.7128,-74.0060"
+                    })
+                });
+
+                if (!res.ok) throw new Error("Status " + res.status);
+                const data = await res.json();
+                appendBotMessage(data);
+            } catch (err) {
+                console.error("Chat error:", err);
+                appendBotMessage("Sorry, I encountered an issue connecting to the medical server. Please check your connection and try again.");
+            } finally {
+                isFetching = false;
+                sendButton.disabled = false;
+                removeTypingIndicator();
+            }
+        }
+
+        chatForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            submitMessage(userInput.value);
+        });
+
+        // Doctor Search in Right Panel
+        async function fetchDoctors(specialty) {
+            if (!specialty) specialty = specialtyInput.value.trim() || "doctor";
+            
+            generateDoctorsBtn.disabled = true;
+            generateDoctorsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+
+            if (doctorEmptyState) doctorEmptyState.style.display = "none";
+
+            try {
+                const res = await fetch("/get", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        msg: "Find " + specialty + " near me",
+                        location: userLocation || "40.7128,-74.0060"
+                    })
+                });
+
+                if (!res.ok) throw new Error("Status " + res.status);
+                const data = await res.json();
+
+                if (data.type === "places" && data.places) {
+                    populateRightPanelFromPlaces(data.places, specialty);
+                } else if (data.response && data.response.includes("doctor-card")) {
+                    parseLegacyDoctorCards(data.response);
+                } else {
+                    doctorResults.innerHTML = `
+                        <div class="doc-empty-state">
+                            <div class="doc-empty-icon"><i class="fas fa-user-doctor"></i></div>
+                            <h3>Search Results</h3>
+                            <p>${data.response || "No specialists found in your area."}</p>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.error("Doctor lookup error:", e);
+                doctorResults.innerHTML = '<div class="doc-empty-state"><p>Could not load doctors right now. Please try again.</p></div>';
+            } finally {
+                generateDoctorsBtn.disabled = false;
+                generateDoctorsBtn.innerHTML = '<i class="fas fa-search"></i> Find Nearby Specialists';
+            }
+        }
+
+        generateDoctorsBtn.addEventListener("click", () => {
+            fetchDoctors(specialtyInput.value.trim());
+        });
+
+        specialtyInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                fetchDoctors(specialtyInput.value.trim());
+            }
+        });
+
+        function populateRightPanelFromPlaces(places, specialty) {
+            doctorResults.innerHTML = "";
+            if (!places || places.length === 0) {
+                doctorResults.innerHTML = `
+                    <div class="doc-empty-state">
+                        <div class="doc-empty-icon"><i class="fas fa-hospital"></i></div>
+                        <h3>No Locations Found</h3>
+                        <p>No verified medical centers found within search radius.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            places.forEach((place, idx) => {
+                const card = document.createElement("div");
+                card.className = "doc-result-card";
+                card.style.animationDelay = (idx * 0.08) + "s";
+
+                const ratingHtml = place.rating 
+                    ? `<div class="doc-rating-box"><i class="fas fa-star"></i> ${place.rating} ${place.user_ratings_total ? '(' + place.user_ratings_total + ')' : ''}</div>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="doc-card-top">
+                        <div class="doc-avatar-box">
+                            <i class="fas fa-user-doctor"></i>
+                        </div>
+                        <div class="doc-title-group">
+                            <h4 class="doc-name">${place.name}</h4>
+                            <span class="doc-specialty-badge">${specialty}</span>
+                            ${ratingHtml}
+                        </div>
+                        <span class="doc-distance-tag">📍 ${place.distance_km} km</span>
+                    </div>
+                    <div class="doc-address">
+                        <i class="fas fa-map-pin"></i>
+                        <span>${place.address || 'Nearby'}</span>
+                    </div>
+                    <div class="doc-actions-row">
+                        <a href="${place.map_url || '#'}" target="_blank" class="doc-action-btn doc-action-map">
+                            <i class="fas fa-directions"></i> Directions
+                        </a>
+                        <button type="button" class="doc-action-btn doc-action-chat" data-docname="${place.name}">
+                            <i class="fas fa-comment-medical"></i> Consult
+                        </button>
+                    </div>
+                `;
+
+                const consultBtn = card.querySelector(".doc-action-chat");
+                if (consultBtn) {
+                    consultBtn.addEventListener("click", () => {
+                        userInput.value = "Tell me more about " + place.name + " and their medical services.";
+                        submitMessage(userInput.value);
+                    });
+                }
+
+                doctorResults.appendChild(card);
+            });
+        }
+
+        function parseLegacyDoctorCards(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const cards = doc.querySelectorAll(".doctor-card");
+            doctorResults.innerHTML = "";
+
+            if (!cards || cards.length === 0) return;
+
+            cards.forEach((card, idx) => {
+                const fullText = card.innerHTML;
+                const nameMatch = fullText.match(/Name:<\/(?:strong|b)>\s*([^<]+)/i);
+                const addrMatch = fullText.match(/Address:<\/(?:strong|b)>\s*([^<]+)/i);
+                const distMatch = fullText.match(/Distance:<\/(?:strong|b)>\s*([^<]+)/i);
+                const linkEl = card.querySelector("a.map-link");
+
+                const docName = nameMatch ? nameMatch[1].trim() : "Healthcare Clinic";
+                const docAddr = addrMatch ? addrMatch[1].trim() : "Nearby";
+                const docDist = distMatch ? distMatch[1].trim() : "Within 50km";
+                const mapHref = linkEl ? linkEl.getAttribute("href") : "https://maps.google.com";
+
+                const resultCard = document.createElement("div");
+                resultCard.className = "doc-result-card";
+                resultCard.style.animationDelay = (idx * 0.08) + "s";
+
+                resultCard.innerHTML = `
+                    <div class="doc-card-top">
+                        <div class="doc-avatar-box">
+                            <i class="fas fa-user-doctor"></i>
+                        </div>
+                        <div class="doc-title-group">
+                            <h4 class="doc-name">${docName}</h4>
+                            <span class="doc-specialty-badge">Specialist</span>
+                        </div>
+                        <span class="doc-distance-tag">📍 ${docDist}</span>
+                    </div>
+                    <div class="doc-address">
+                        <i class="fas fa-map-pin"></i>
+                        <span>${docAddr}</span>
+                    </div>
+                    <div class="doc-actions-row">
+                        <a href="${mapHref}" target="_blank" class="doc-action-btn doc-action-map">
+                            <i class="fas fa-directions"></i> Directions
+                        </a>
+                        <button type="button" class="doc-action-btn doc-action-chat">
+                            <i class="fas fa-comment-medical"></i> Consult
+                        </button>
+                    </div>
+                `;
+
+                const consultBtn = resultCard.querySelector(".doc-action-chat");
+                if (consultBtn) {
+                    consultBtn.addEventListener("click", () => {
+                        userInput.value = "Tell me more about " + docName + " and their medical services.";
+                        submitMessage(userInput.value);
+                    });
+                }
+
+                doctorResults.appendChild(resultCard);
+            });
+        }
+
+        // Initialize Theme & Geolocation
+        initTheme();
+        detectLocation();
+
+    })();
     </script>
-
-    <style>
-    /* Color variables */
-    :root {
-        --brand: #2563eb;
-        --brand-dark: #1d4ed8;
-        --brand-light: #eff6ff;
-        --success: #059669;
-        --danger: #dc2626;
-        --muted: #6b7280;
-        --surface: #ffffff;
-        --surface-dark: #f8fafc;
-        --card: #ffffff;
-        --border: #e5e7eb;
-        --text: #111827;
-        --text-secondary: #6b7280;
-    }
-
-    /* Page structure */
-    .app-shell {
-        display: flex;
-        min-height: 100vh;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        background-color: #f1f5f9;
-        overflow-x: hidden;
-    }
-
-    /* Chat area */
-    .chat-main {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        width: 0;
-        max-width: calc(100% - 340px);
-        background-color: #ffffff;
-        border-left: 1px solid #e5e7eb;
-    }
-
-    .header-bar {
-        padding: 0.875rem 1rem;
-        border-bottom: 1px solid #e5e7eb;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .header-content {
-        flex: 1;
-    }
-
-    .header-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #111827;
-        display: flex;
-        align-items: center;
-        gap: 0.375rem;
-        margin: 0;
-    }
-
-    .header-sub {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin: 0;
-    }
-
-    .loc-btn {
-        padding: 0.5rem;
-        border-radius: 9999px;
-        background: #f1f5f9;
-        border: none;
-        cursor: pointer;
-        transition: background 0.2s, transform 0.1s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .loc-btn:hover {
-        background: #e2e8f0;
-    }
-
-    .loc-btn:focus-visible {
-        outline: 2px solid #2563eb;
-        outline-offset: 2px;
-    }
-
-    .chat-interface {
-        flex: 1;
-        padding: 0.875rem 1rem 0.5rem;
-        overflow-y: auto;
-        background: #f8fafc;
-    }
-
-    .message-area {
-        min-height: 300px;
-    }
-
-    .disclaimer {
-        margin-top: 0.75rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid #e5e7eb;
-        font-size: 0.75rem;
-        color: #6b7280;
-        display: flex;
-        align-items: center;
-    }
-
-    .input-form {
-        padding: 0.875rem 1rem;
-        background: #ffffff;
-        border-top: 1px solid #e5e7eb;
-        display: flex;
-        gap: 0.625rem;
-    }
-
-    .input-wrapper {
-        flex: 1;
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .input-wrapper input {
-        flex: 1;
-        padding: 0.625rem 0.875rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-family: inherit;
-        outline: none;
-        transition: border-color 0.2s;
-    }
-
-    .input-wrapper input:focus {
-        border-color: #2563eb;
-    }
-
-    .input-wrapper button {
-        padding: 0 1rem;
-        background: #2563eb;
-        color: #ffffff;
-        border: none;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .input-wrapper button:hover {
-        background: #1d4ed8;
-    }
-
-    .input-wrapper button:focus-visible {
-        outline: 2px solid #2563eb;
-        outline-offset: 2px;
-    }
-
-    /* Doctors panel */
-    .doctors-panel {
-        position: fixed;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        width: 340px;
-        background-color: #ffffff;
-        border-left: 1px solid #e5e7eb;
-        z-index: 100;
-        display: flex;
-        flex-direction: column;
-        box-shadow: -4px 0 12px rgba(0,0,0,0.05);
-        transform: translateX(0);
-        transition: transform 0.3s ease;
-    }
-
-    .doctors-panel.panel-closed {
-        transform: translateX(100%);
-    }
-
-    .doctors-panel.panel-visible {
-        z-index: 100;
-    }
-
-    .panel-header {
-        padding: 0.875rem 1rem;
-        border-bottom: 1px solid #e5e7eb;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .panel-header h3 {
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 600;
-        color: #111827;
-    }
-
-    .panel-close {
-        padding: 0.25rem;
-        background: none;
-        border: none;
-        color: #6b7280;
-        cursor: pointer;
-        font-size: 1.25rem;
-        transition: color 0.2s;
-    }
-
-    .panel-close:hover {
-        color: #dc2626;
-    }
-
-    .panel-body {
-        flex: 1;
-        padding: 0.875rem 1rem;
-        overflow-y: auto;
-    }
-
-    .panel-hint {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin-bottom: 0.75rem;
-        display: block;
-    }
-
-    .cond-input {
-        width: 100%;
-        padding: 0.625rem 0.875rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-family: inherit;
-        outline: none;
-        margin-bottom: 0.625rem;
-    }
-
-    .cond-input:focus {
-        border-color: #2563eb;
-    }
-
-    .gen-btn {
-        width: 100%;
-        padding: 0.625rem;
-        background: #2563eb;
-        color: #ffffff;
-        border: none;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .gen-btn:hover {
-        background: #1d4ed8;
-    }
-
-    .gen-btn:focus-visible {
-        outline: 2px solid #2563eb;
-        outline-offset: 2px;
-    }
-
-    /* Doctor cards (from place results) */
-    .doctor-card {
-        padding: 0.75rem 1rem;
-        background: #ffffff;
-        border-radius: 0.5rem;
-        border: 1px solid #f3f4f6;
-        margin-top: 0.5rem;
-    }
-
-    .doctor-card strong {
-        color: #111827;
-        font-weight: 600;
-    }
-
-    .doctor-meta {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin-top: 0.25rem;
-    }
-
-    .map-link {
-        display: inline-block;
-        margin-top: 0.5rem;
-        padding: 0.375rem 0.75rem;
-        background: #2563eb;
-        color: #ffffff;
-        text-decoration: none;
-        border-radius: 0.5rem;
-        font-size: 0.75rem;
-        font-weight: 500;
-        transition: background 0.2s;
-    }
-
-    .map-link:hover {
-        background: #1d4ed8;
-    }
-
-    /* Loading spinner */
-    .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid #e5e7eb;
-        border-top-color: #2563eb;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-        display: inline-block;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    /* Bubbles */
-    .user-bubble, .bot-bubble {
-        margin: 0.5rem 0;
-        padding: 0.75rem 1rem;
-        border-radius: 0.75rem;
-        max-width: 85%;
-        line-height: 1.5;
-    }
-
-    .user-bubble {
-        background: #dcfce7;
-        margin-left: auto;
-        border-bottom-right-radius: 4px;
-    }
-
-    .bot-bubble {
-        background: #f8fafc;
-        color: #111827;
-        margin-right: auto;
-        border-bottom-left-radius: 4px;
-    }
-
-    .message-sources {
-        margin-top: 0.375rem;
-        font-size: 0.6875rem;
-        color: #6b7280;
-        padding-top: 0.25rem;
-        border-top: 1px dashed #e5e7eb;
-    }
-
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-        .app-shell {
-            flex-direction: column-reverse;
-        }
-
-        .chat-main {
-            max-width: 100%;
-            border-left: none;
-            border-top: 1px solid #e5e7eb;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .doctors-panel {
-            position: relative;
-            width: 100%;
-            border-left: none;
-            border-top: 1px solid #e5e7eb;
-        }
-
-        .doctors-panel.panel-closed {
-            transform: translateX(0);
-        }
-
-        .doctors-panel.panel-visible {
-            display: block;
-        }
-    }
-    </style>
 </body>
 </html>
