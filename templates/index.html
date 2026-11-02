@@ -10,33 +10,49 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <main class="chat-container">
-        <header class="chat-header">
-            <h1 class="title"><i class="fas fa-stethoscope" aria-hidden="true"></i> MedBot</h1>
-            <p class="subtitle">Medical questions and nearby doctor recommendations</p>
-            <button type="button" id="location-status" class="location-status pending"
-                    title="Click to retry location access">
-                <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
-                <span id="location-text">Getting your location…</span>
-            </button>
-        </header>
+    <div class="wrapper">
+        <!-- Sidebar for doctor search -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-search-heart" aria-hidden="true"></i> Find Doctors</h3>
+            </div>
+            <div class="sidebar-body">
+                <p class="sidebar-subtext">Enter a condition or specialty</p>
+                <input type="text" id="condition-input" placeholder="e.g. cardiologist, chest pain, hospital" />
+                <button class="btn-generate" id="generate-btn">
+                    <i class="fas fa-search" aria-hidden="true"></i> Generate
+                </button>
+            </div>
+        </aside>
 
-        <div id="chatbox" class="chatbox" role="log" aria-live="polite" aria-label="Conversation"></div>
+        <main class="chat-container">
+            <header class="chat-header">
+                <h1 class="title"><i class="fas fa-stethoscope" aria-hidden="true"></i> MedBot</h1>
+                <p class="subtitle">Medical questions and nearby doctor recommendations</p>
+                <button type="button" id="location-status" class="location-status pending"
+                        title="Click to retry location access">
+                    <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
+                    <span id="location-text">Getting your location…</span>
+                </button>
+            </header>
 
-        <p class="disclaimer">
-            <i class="fas fa-circle-info" aria-hidden="true"></i>
-            MedBot provides general information only and is not a substitute for professional medical advice.
-        </p>
+            <div id="chatbox" class="chatbox" role="log" aria-live="polite" aria-label="Conversation"></div>
 
-        <form id="chat-form" class="input-form" autocomplete="off">
-            <label class="sr-only" for="user-input">Your question</label>
-            <input type="text" id="user-input" name="msg" maxlength="1000"
-                   placeholder="Ask a medical question, or find a doctor near me…" required>
-            <button type="submit" id="send-button" aria-label="Send message">
-                <i class="fas fa-paper-plane" aria-hidden="true"></i>
-            </button>
-        </form>
-    </main>
+            <p class="disclaimer">
+                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                MedBot provides general information only and is not a substitute for professional medical advice.
+            </p>
+
+            <form id="chat-form" class="input-form" autocomplete="off">
+                <label class="sr-only" for="user-input">Your question</label>
+                <input type="text" id="user-input" name="msg" maxlength="1000"
+                       placeholder="Ask a medical question, or find a doctor near me…" required>
+                <button type="submit" id="send-button" aria-label="Send message">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                </button>
+            </form>
+        </main>
+    </div>
 
     <script>
         "use strict";
@@ -291,6 +307,41 @@
             "and I'll look for a suitable doctor near you."
         );
         requestLocation();
+
+        /* ---------- Generate doctor search ---------- */
+
+        const conditionInput = document.getElementById("condition-input");
+        const generateBtn = document.getElementById("generate-btn");
+
+        generateBtn.addEventListener("click", async () => {
+            const condition = conditionInput.value.trim();
+            if (!condition) return;
+
+            // Add a thinking message
+            const loading = addBotText('<span class="spinner" role="status" aria-label="Searching"></span>');
+
+            try {
+                const response = await fetch("/get", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ msg: condition, location: userLocation })
+                });
+                const data = await response.json().catch(() => null);
+                loading.remove();
+
+                if (!data) {
+                    addBotText("Sorry, I'm having a connection issue. Please try again.");
+                } else if (data.type === "places") {
+                    addPlaceResults(data);
+                } else {
+                    addBotText(data.response || "Sorry, I couldn't process that.", data.sources);
+                }
+            } catch (error) {
+                console.error("Request failed:", error);
+                loading.remove();
+                addBotText("Sorry, I'm having a connection issue. Please try again.");
+            }
+        });
     </script>
 </body>
 </html>
