@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import pytest
+from flask import Flask
 
 import places
 import rag
 from app import create_app
+
+
+def test_top_level_app_is_a_wsgi_callable():
+    """Vercel's Python runtime looks for `app` at the module level in app.py."""
+    import app as medbot_app
+
+    assert isinstance(medbot_app.app, Flask)
+    assert callable(medbot_app.app)
 
 
 @pytest.fixture

@@ -35,7 +35,7 @@ message needs, so the user never has to switch modes.
 - **No local ML stack** — embeddings run inside Pinecone. No torch, no 2 GB
   download, no Python 3.13 ceiling.
 - **Configurable, testable, container-ready** — settings in one module, Flask
-  application factory, 114 tests, `Dockerfile`, `docker compose`, and CI.
+  application factory, 115 tests, `Dockerfile`, `docker compose`, and CI.
 
 ## 🏗️ Architecture
 
@@ -92,9 +92,12 @@ config.py              Environment settings, validation
 ingest.py              One-off PDF -> Pinecone ingestion (batched, retryable)
 templates/index.html   Chat UI (all rendering escaped/validated)
 static/style.css       Styling
-tests/                 Pytest suite (114 tests, no network required)
+tests/                 Pytest suite (115 tests, no network required)
 Dockerfile             Production image (non-root, healthcheck)
 docker-compose.yml     Local container setup
+vercel.json            Vercel function timeout (Flask entrypoint: app.py)
+.vercelignore          Files excluded from the Vercel upload
+.python-version        Python 3.12 for Vercel
 SECURITY.md            Key rotation + deployment checklist
 ```
 
@@ -195,6 +198,82 @@ docker run --rm -p 8080:8080 --env-file .env medbot
 The image is now ~180 MB (no torch), runs as a non-root user, and serves
 through gunicorn with a `/healthz` healthcheck.
 
+## ▲ Vercel
+
+`app.py` exposes a top-level `app`, which is exactly what Vercel's Python
+runtime looks for, so no adapter (`api/index.py`, `Procfile`, custom start
+command) is needed. `vercel.json` only sets the function timeout, and
+`.vercelignore` keeps `.venv`, `data/` and the tests out of the bundle.
+
+### 1. Import the repository
+
+On <https://vercel.com/new> import the GitHub repo and keep the defaults:
+
+| Setting | Value |
+| --- | --- |
+| Framework preset | **Flask** (pinned in `vercel.json`; `app.py` is the entrypoint) |
+| Root directory | `.` |
+| Build command | *(empty — Vercel installs `requirements.txt` itself)* |
+| Output directory | *(empty)* |
+
+`.python-version` pins Python **3.12**. Do **not** copy the Docker `CMD` or a
+`gunicorn` command into a start-command field; Vercel calls the WSGI app
+directly.
+
+### 2. Add environment variables
+
+Project → **Settings** → **Environment Variables** (tick Production, Preview
+and Development):
+
+| Variable | Required | Without it |
+| --- | --- | --- |
+| `GOOGLE_API_KEY` | yes | Chat answers return HTTP 502 |
+| `PINECONE_API_KEY` | yes | Retrieval fails, chat returns HTTP 502 |
+| `GOOGLE_MAPS_API_KEY` | for doctor search | Chat still works; “find a doctor” reports the service is unavailable |
+
+Optional overrides (`LLM_MODEL`, `LLM_FALLBACK_MODELS`, `RETRIEVAL_TOP_K`,
+`PLACES_RADIUS_KM`, …) are documented in [`.env.example`](.env.example).
+Never commit a real `.env` — Vercel deployments read these variables only.
+
+### 3. Deploy and verify
+
+```bash
+# after the first Git deploy
+curl https://<project>.vercel.app/healthz
+# {"status":"ok","configured":{"google":true,"maps":true,"pinecone":true}}
+```
+
+Or from the CLI:
+
+```bash
+npm i -g vercel
+vercel link
+vercel env add GOOGLE_API_KEY production
+vercel env add PINECONE_API_KEY production
+vercel env add GOOGLE_MAPS_API_KEY production
+vercel --prod
+```
+
+### Notes specific to Vercel
+
+- **No `gunicorn`, no persistent disk, read-only filesystem.** The app never
+  writes files, so this is fine. But `python ingest.py` cannot run there —
+  ingest locally (or in CI) and let the function query Pinecone.
+- **Cold starts.** The first request after idle imports `pinecone` and
+  `google-genai`; expect a few seconds before the first answer.
+- **Timeout.** `vercel.json` sets `maxDuration` to 120 s so a slow Gemini
+  call (primary + 2 fallbacks, 20 s each) is not cut off. Hobby allows up to
+  300 s.
+- **Region.** Hobby functions run in `iad1` (Washington, D.C.); a Pro plan can
+  move them closer to your users.
+- **Geolocation works on the live site.** Vercel serves HTTPS, and browsers
+  only allow `navigator.geolocation` on `https://` or `localhost`. The badge
+  turns green without extra configuration; if it stays red, check the browser
+  / OS location permission rather than the deployment.
+- Doctor search still costs money per call (Places API) and Gemini's free tier
+  is ~20 requests/day/model — see [SECURITY.md](SECURITY.md) before sharing the
+  URL publicly.
+
 ## 🔌 API
 
 | Method | Path | Body | Response |
@@ -231,7 +310,7 @@ details are logged, never returned.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # 114 tests, ~1 second
+pytest            # 115 tests, ~1 second
 ruff check .
 ```
 
@@ -249,6 +328,10 @@ are replaced with fakes at the module boundary.
 | Answers take 20–50 s, log shows `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` | Gemini is overloaded. The app retries briefly, then falls back to `LLM_FALLBACK_MODELS`; tune `LLM_MODEL` / `LLM_FALLBACK_MODELS` in `.env` |
 | `REQUEST_DENIED` from Places | Places API **(New)** not enabled, billing off, or key restricted to another API. Legacy Nearby Search keys do not work — the app calls `places.googleapis.com/v1/places:searchText` |
 | `No module named torch` | You are on the old commit; this version has no local ML stack |
+| Vercel build: “No entrypoint found” | `app.py` must export a top-level `app` (it does) and stay in the repo root; remove any custom start command |
+| Vercel: `FUNCTION_INVOCATION_TIMEOUT` / 504 | Gemini was slow past `maxDuration`; raise it in `vercel.json` or set a faster `LLM_MODEL` |
+| Vercel: page loads unstyled | `static/` or `templates/` was excluded from the upload — check `.vercelignore` |
+| Live badge says “Location blocked” | Browsers need HTTPS (Vercel gives you that) plus browser/OS location permission |
 
 ## 🔐 Security
 

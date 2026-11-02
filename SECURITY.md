@@ -54,12 +54,15 @@ and set billing alerts.
 
 ## Deployment checklist
 
-- [ ] `.env` is not in the image (`docker build` respects `.dockerignore`).
+- [ ] `.env` is not in the image (`docker build` respects `.dockerignore`) and
+      not uploaded to Vercel (`.vercelignore`).
 - [ ] The app runs as a non-root user (the provided image does).
 - [ ] HTTPS terminates in front of the app; geolocation requires a secure origin.
 - [ ] API keys are restricted by API and by referrer/IP at the provider.
 - [ ] Rate limiting is enabled at the reverse proxy (Gemini and Places calls cost money).
 - [ ] `LOG_LEVEL=INFO` — debug logs may include retrieved document text.
+- [ ] On Vercel, keys live in Project → Settings → Environment Variables, and
+      the deployment URL is protected or rate-limited if it is public.
 
 ## Supported versions
 
