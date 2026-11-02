@@ -37,9 +37,10 @@ MAX_CONTEXT_CHARS = 8000
 
 # Gemini occasionally answers "503 UNAVAILABLE / high demand" or rate-limits us.
 # Those are worth retrying; auth and bad-request errors are not.
-GENERATION_ATTEMPTS = 3
+GENERATION_ATTEMPTS = 2  # per model, before falling back to the next one
 RETRY_BASE_DELAY_SECONDS = 1.0
-RETRY_MAX_DELAY_SECONDS = 8.0
+# Without an explicit timeout the HTTP client can wait forever and pin a worker.
+GENERATION_TIMEOUT_MS = 20_000
 TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
 TRANSIENT_STATUS_NAMES = frozenset(
     {"DEADLINE_EXCEEDED", "INTERNAL", "RESOURCE_EXHAUSTED", "UNAVAILABLE"}
@@ -102,7 +103,10 @@ def _get_genai_client():
 
                 settings = require_settings("GOOGLE_API_KEY")
                 logger.info("Initialising Gemini client for %s", settings.llm_model)
-                _genai_client = genai.Client(api_key=settings.google_api_key)
+                _genai_client = genai.Client(
+                    api_key=settings.google_api_key,
+                    http_options={"timeout": GENERATION_TIMEOUT_MS},
+                )
     return _genai_client
 
 
@@ -174,32 +178,61 @@ def _is_transient(exc: BaseException) -> bool:
     return isinstance(status, str) and status.upper() in TRANSIENT_STATUS_NAMES
 
 
+def _is_timeout(exc: BaseException) -> bool:
+    """True when the model timed out, so retrying it just wastes the budget."""
+    try:
+        if int(getattr(exc, "code", None)) == 504:
+            return True
+    except (TypeError, ValueError):
+        pass
+    return str(getattr(exc, "status", "")).upper() == "DEADLINE_EXCEEDED"
+
+
+def _model_plan(settings) -> list[tuple[str, int]]:
+    """Primary model gets a retry; fallbacks get one shot each."""
+    plan = [(settings.llm_model, GENERATION_ATTEMPTS)]
+    plan.extend((model, 1) for model in settings.llm_fallback_models)
+    return plan
+
+
 def generate(prompt: str) -> str:
     settings = require_settings("GOOGLE_API_KEY")
     client = _get_genai_client()
 
-    for attempt in range(1, GENERATION_ATTEMPTS + 1):
-        try:
-            response = client.models.generate_content(
-                model=settings.llm_model, contents=prompt
-            )
-            return (getattr(response, "text", "") or "").strip()
-        except Exception as exc:
-            if attempt == GENERATION_ATTEMPTS or not _is_transient(exc):
-                raise
-            delay = min(
-                RETRY_MAX_DELAY_SECONDS, RETRY_BASE_DELAY_SECONDS * 2 ** (attempt - 1)
-            )
-            logger.warning(
-                "Gemini call failed (%s); retrying in %.1fs (attempt %d/%d)",
-                exc,
-                delay,
-                attempt,
-                GENERATION_ATTEMPTS,
-            )
-            time.sleep(delay)
+    last_error: Exception | None = None
+    for model, attempts in _model_plan(settings):
+        for attempt in range(1, attempts + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model, contents=prompt
+                )
+                if model != settings.llm_model:
+                    logger.info("Answered with fallback model %s", model)
+                return (getattr(response, "text", "") or "").strip()
+            except Exception as exc:
+                last_error = exc
+                if not _is_transient(exc):
+                    raise
+                if attempt < attempts and not _is_timeout(exc):
+                    delay = RETRY_BASE_DELAY_SECONDS * attempt
+                    logger.warning(
+                        "%s failed (%s); retrying in %.1fs (attempt %d/%d)",
+                        model,
+                        exc,
+                        delay,
+                        attempt,
+                        attempts,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.warning(
+                        "%s unavailable (%s); trying the next model", model, exc
+                    )
+                    break
 
-    raise AssertionError("unreachable")  # pragma: no cover
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Gemini is unavailable")  # pragma: no cover
 
 
 def _dedupe_sources(chunks: list[tuple[str, Source]]) -> list[Source]:

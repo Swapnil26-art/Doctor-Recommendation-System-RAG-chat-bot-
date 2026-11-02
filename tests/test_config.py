@@ -16,6 +16,8 @@ def test_defaults_are_applied():
     assert settings.pinecone_namespace == "knowledge-base"
     assert settings.retrieval_top_k == 4
     assert settings.min_relevance_score == 0.30
+    assert settings.llm_model == "gemini-3.8-flash"
+    assert settings.llm_fallback_models == ("gemini-3.6-flash", "gemini-3.5-flash")
     assert settings.chunk_size == 1000
     assert settings.places_radius_km == 50
     assert settings.missing_keys == []
@@ -93,6 +95,8 @@ def test_environment_overrides(monkeypatch):
     monkeypatch.setenv("RETRIEVAL_TOP_K", "6")
     monkeypatch.setenv("PLACES_RADIUS_KM", "10")
     monkeypatch.setenv("PLACES_MAX_RESULTS", "3")
+    monkeypatch.setenv("LLM_MODEL", "custom-model")
+    monkeypatch.setenv("LLM_FALLBACK_MODELS", "fallback-a, fallback-b ,")
     get_settings.cache_clear()
 
     settings = get_settings()
@@ -102,6 +106,15 @@ def test_environment_overrides(monkeypatch):
     assert settings.retrieval_top_k == 6
     assert settings.places_radius_km == 10
     assert settings.places_max_results == 3
+    assert settings.llm_model == "custom-model"
+    assert settings.llm_fallback_models == ("fallback-a", "fallback-b")
+
+
+def test_empty_fallback_list_is_allowed(monkeypatch):
+    monkeypatch.setenv("LLM_FALLBACK_MODELS", "")
+    get_settings.cache_clear()
+
+    assert get_settings().llm_fallback_models == ()
 
 
 def test_invalid_integer_falls_back_to_default(monkeypatch):

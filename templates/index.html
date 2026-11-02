@@ -216,11 +216,16 @@
             setLocationState("pending", "Getting your location…");
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    userLocation = position.coords.latitude + "," + position.coords.longitude;
+                    const { latitude, longitude, accuracy } = position.coords;
+                    userLocation = latitude + "," + longitude;
                     setLocationState("ok", "Location ready — doctor search enabled");
+                    locationButton.title =
+                        "Location: " + latitude.toFixed(4) + ", " + longitude.toFixed(4) +
+                        " (±" + Math.round(accuracy) + " m) — click to refresh";
                 },
                 () => {
                     userLocation = null;
+                    locationButton.title = "Click to retry location access";
                     setLocationState("error", "Location blocked — allow access to find doctors");
                 },
                 { timeout: 10000, maximumAge: 600000 }

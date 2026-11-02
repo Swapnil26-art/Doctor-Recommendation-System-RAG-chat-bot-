@@ -17,6 +17,9 @@ DEFAULT_INDEX_NAME = "medicalbot"
 # touching anything else in the index.
 DEFAULT_NAMESPACE = "knowledge-base"
 DEFAULT_LLM_MODEL = "gemini-3.8-flash"
+# If the primary model is overloaded (Gemini returns 503/504), fall back
+# instead of failing the user's request.
+DEFAULT_LLM_FALLBACK_MODELS = ("gemini-3.6-flash", "gemini-3.5-flash")
 DEFAULT_TOP_K = 4
 # Below this cosine score the chunks are noise; better to admit we don't know.
 DEFAULT_MIN_SCORE = 0.30
@@ -57,6 +60,7 @@ class Settings:
     pinecone_index: str = DEFAULT_INDEX_NAME
     pinecone_namespace: str = DEFAULT_NAMESPACE
     llm_model: str = DEFAULT_LLM_MODEL
+    llm_fallback_models: tuple[str, ...] = DEFAULT_LLM_FALLBACK_MODELS
     retrieval_top_k: int = DEFAULT_TOP_K
     min_relevance_score: float = DEFAULT_MIN_SCORE
     chunk_size: int = DEFAULT_CHUNK_SIZE
@@ -90,6 +94,14 @@ def _float_from_env(name: str, default: float) -> float:
         return default
 
 
+def _list_from_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    items = tuple(item.strip() for item in raw.split(",") if item.strip())
+    return items
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return the cached settings, loading ``.env`` on first use.
@@ -106,6 +118,9 @@ def get_settings() -> Settings:
         pinecone_index=os.getenv("PINECONE_INDEX", DEFAULT_INDEX_NAME),
         pinecone_namespace=os.getenv("PINECONE_NAMESPACE", DEFAULT_NAMESPACE),
         llm_model=os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
+        llm_fallback_models=_list_from_env(
+            "LLM_FALLBACK_MODELS", DEFAULT_LLM_FALLBACK_MODELS
+        ),
         retrieval_top_k=_int_from_env("RETRIEVAL_TOP_K", DEFAULT_TOP_K),
         min_relevance_score=_float_from_env("MIN_RELEVANCE_SCORE", DEFAULT_MIN_SCORE),
         chunk_size=_int_from_env("CHUNK_SIZE", DEFAULT_CHUNK_SIZE),

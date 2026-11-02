@@ -35,7 +35,7 @@ message needs, so the user never has to switch modes.
 - **No local ML stack** — embeddings run inside Pinecone. No torch, no 2 GB
   download, no Python 3.13 ceiling.
 - **Configurable, testable, container-ready** — settings in one module, Flask
-  application factory, 110 tests, `Dockerfile`, `docker compose`, and CI.
+  application factory, 114 tests, `Dockerfile`, `docker compose`, and CI.
 
 ## 🏗️ Architecture
 
@@ -52,7 +52,7 @@ Browser (templates/index.html)
                          │                 ├── Pinecone search(inputs={"text": q})
                          │                 │     └── llama-text-embed-v2 (server-side)
                          │                 ├── relevance floor + page citations
-                         │                 └── Gemini 3.8 Flash
+                         │                 └── Gemini 3.8 Flash (3.6/3.5 fallback)
                          └── JSON: { type: "text" | "places", ... }
 ```
 
@@ -73,7 +73,7 @@ no model download.
 | Layer | Choice |
 | --- | --- |
 | Backend | Flask 3.1 |
-| LLM | Google Gemini 3.8 Flash (`google-genai`) |
+| LLM | Google Gemini 3.8 Flash (`google-genai`), falling back to 3.6/3.5 when overloaded |
 | Vector DB | Pinecone serverless, **integrated index** |
 | Embeddings | `llama-text-embed-v2`, hosted by Pinecone (384 dims, cosine) |
 | Retrieval | Pinecone text search (no local model) |
@@ -92,7 +92,7 @@ config.py              Environment settings, validation
 ingest.py              One-off PDF -> Pinecone ingestion (batched, retryable)
 templates/index.html   Chat UI (all rendering escaped/validated)
 static/style.css       Styling
-tests/                 Pytest suite (110 tests, no network required)
+tests/                 Pytest suite (114 tests, no network required)
 Dockerfile             Production image (non-root, healthcheck)
 docker-compose.yml     Local container setup
 SECURITY.md            Key rotation + deployment checklist
@@ -231,7 +231,7 @@ details are logged, never returned.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # 110 tests, ~1 second
+pytest            # 114 tests, ~1 second
 ruff check .
 ```
 
@@ -246,6 +246,7 @@ are replaced with fakes at the module boundary.
 | Answers are irrelevant / score ~0.15 | The index contains vectors from a different model than `llama-text-embed-v2`. Run `python ingest.py --reset` |
 | No sources returned at all | Wrong namespace — check `PINECONE_NAMESPACE` and `index.describe_index_stats()` |
 | `Invalid API key` from Gemini | `GOOGLE_API_KEY` is a placeholder or expired |
+| Answers take 20–50 s, log shows `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` | Gemini is overloaded. The app retries briefly, then falls back to `LLM_FALLBACK_MODELS`; tune `LLM_MODEL` / `LLM_FALLBACK_MODELS` in `.env` |
 | `REQUEST_DENIED` from Places | Places API **(New)** not enabled, billing off, or key restricted to another API. Legacy Nearby Search keys do not work — the app calls `places.googleapis.com/v1/places:searchText` |
 | `No module named torch` | You are on the old commit; this version has no local ML stack |
 

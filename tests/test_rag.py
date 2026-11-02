@@ -233,7 +233,6 @@ def test_generate_retries_transient_failures_then_succeeds(monkeypatch):
     monkeypatch.setattr(rag.time, "sleep", sleeps.append)
     client = FakeGeminiClient(
         [
-            FakeGeminiError(503, "UNAVAILABLE"),
             FakeGeminiError(None, "RESOURCE_EXHAUSTED"),  # status-only error
             "  Asthma affects the airways.  ",
         ]
@@ -241,8 +240,49 @@ def test_generate_retries_transient_failures_then_succeeds(monkeypatch):
     monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
 
     assert rag.generate("prompt") == "Asthma affects the airways."
-    assert len(client.models.calls) == 3
-    assert sleeps == [1.0, 2.0]
+    assert len(client.models.calls) == 2
+    assert sleeps == [1.0]
+
+
+def test_generate_falls_back_when_the_primary_model_is_down(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(rag.time, "sleep", sleeps.append)
+    settings = get_settings()
+    fallback = settings.llm_fallback_models[0]
+    client = FakeGeminiClient(
+        [
+            FakeGeminiError(503, "UNAVAILABLE"),
+            FakeGeminiError(504, "DEADLINE_EXCEEDED"),
+            "answer from the fallback",
+        ]
+    )
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    assert rag.generate("prompt") == "answer from the fallback"
+    assert [call["model"] for call in client.models.calls] == [
+        settings.llm_model,
+        settings.llm_model,
+        fallback,
+    ]
+    assert sleeps == [1.0]
+
+
+def test_generate_skips_the_retry_when_the_primary_times_out(monkeypatch):
+    """A 20s timeout must fail over immediately, not burn two timeouts."""
+    sleeps = []
+    monkeypatch.setattr(rag.time, "sleep", sleeps.append)
+    settings = get_settings()
+    client = FakeGeminiClient(
+        [FakeGeminiError(504, "DEADLINE_EXCEEDED"), "answer from the fallback"]
+    )
+    monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
+
+    assert rag.generate("prompt") == "answer from the fallback"
+    assert [call["model"] for call in client.models.calls] == [
+        settings.llm_model,
+        settings.llm_fallback_models[0],
+    ]
+    assert sleeps == []
 
 
 def test_generate_does_not_retry_client_errors(monkeypatch):
@@ -258,19 +298,19 @@ def test_generate_does_not_retry_client_errors(monkeypatch):
     assert len(client.models.calls) == 1
 
 
-def test_generate_gives_up_after_max_attempts(monkeypatch):
+def test_generate_gives_up_after_all_models_fail(monkeypatch):
     sleeps = []
     monkeypatch.setattr(rag.time, "sleep", sleeps.append)
-    client = FakeGeminiClient(
-        [FakeGeminiError(503, "UNAVAILABLE")] * rag.GENERATION_ATTEMPTS
-    )
+    plan = rag._model_plan(get_settings())
+    total_calls = sum(attempts for _model, attempts in plan)
+    client = FakeGeminiClient([FakeGeminiError(503, "UNAVAILABLE")] * total_calls)
     monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
 
     with pytest.raises(FakeGeminiError):
         rag.generate("prompt")
 
-    assert len(client.models.calls) == rag.GENERATION_ATTEMPTS
-    assert sleeps == [1.0, 2.0]
+    assert len(client.models.calls) == total_calls
+    assert sleeps == [1.0]
 
 
 def test_chat_does_not_require_a_maps_key(monkeypatch):
@@ -281,3 +321,29 @@ def test_chat_does_not_require_a_maps_key(monkeypatch):
     monkeypatch.setattr(rag, "_get_genai_client", lambda: client)
 
     assert rag.generate("prompt") == "answer"
+
+
+def test_genai_client_is_created_with_a_request_timeout(monkeypatch):
+    import sys
+    import types
+
+    import google
+
+    captured = {}
+
+    class FakeGenai:
+        def Client(self, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+    fake_module = types.ModuleType("google.genai")
+    fake_module.Client = FakeGenai().Client
+    monkeypatch.setitem(sys.modules, "google.genai", fake_module)
+    monkeypatch.setattr(google, "genai", fake_module, raising=False)
+    rag.reset_clients()
+    try:
+        rag._get_genai_client()
+    finally:
+        rag.reset_clients()
+
+    assert captured["http_options"]["timeout"] == rag.GENERATION_TIMEOUT_MS
