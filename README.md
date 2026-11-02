@@ -235,6 +235,23 @@ Optional overrides (`LLM_MODEL`, `LLM_FALLBACK_MODELS`, `RETRIEVAL_TOP_K`,
 `PLACES_RADIUS_KM`, …) are documented in [`.env.example`](.env.example).
 Never commit a real `.env` — Vercel deployments read these variables only.
 
+Three things that make keys fail on Vercel even though they work locally:
+
+- **Redeploy after adding or editing a variable.** Vercel bakes the values into
+  a deployment; an existing deployment keeps the old ones.
+- **Paste the raw value**, without quotes and without a trailing newline. The
+  dashboard stores exactly what you type (`"abc"` becomes a 5-character key).
+- **Key restrictions must allow server-side use.** A Maps key restricted to
+  *HTTP referrers* will be rejected (the call comes from the function, not the
+  browser), and Vercel's egress IPs change, so IP restrictions are fragile.
+  Keep the application restriction open and restrict by **API** instead:
+  *Generative Language API* for `GOOGLE_API_KEY`, *Places API (New)* for
+  `GOOGLE_MAPS_API_KEY`.
+
+A real `.env` is excluded by both `.gitignore` and `.vercelignore`; keep it
+that way, because `config.py` loads `.env` with `override=True`, so an uploaded
+`.env` would silently win over the dashboard values.
+
 ### 3. Deploy and verify
 
 ```bash
@@ -331,6 +348,8 @@ are replaced with fakes at the module boundary.
 | Vercel build: “No entrypoint found” | `app.py` must export a top-level `app` (it does) and stay in the repo root; remove any custom start command |
 | Vercel: `FUNCTION_INVOCATION_TIMEOUT` / 504 | Gemini was slow past `maxDuration`; raise it in `vercel.json` or set a faster `LLM_MODEL` |
 | Vercel: page loads unstyled | `static/` or `templates/` was excluded from the upload — check `.vercelignore` |
+| Vercel: `/healthz` still says `false` after adding keys | The variables were added after the deployment — run **Redeploy** |
+| Maps works locally but returns 403 on Vercel | The key is restricted by HTTP referrer/IP; restrict by API instead (see the Vercel section) |
 | Live badge says “Location blocked” | Browsers need HTTPS (Vercel gives you that) plus browser/OS location permission |
 
 ## 🔐 Security
