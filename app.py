@@ -156,11 +156,15 @@ def _doctor_response(payload: dict, message: str):
         )
 
     logger.info("Found %d places for specialty=%s", len(results), specialty)
+    noun = {
+        "hospital": "hospitals",
+        "clinic": "clinics",
+    }.get(specialty, f"{specialty}s")
     return jsonify(
         {
             "type": "places",
             "specialty": specialty,
-            "intro": f"Here are the closest {specialty}s and hospitals I found near you:",
+            "intro": f"Here are the closest {noun} I found near you:",
             "places": [asdict(place) for place in results],
         }
     )

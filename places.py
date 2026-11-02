@@ -16,8 +16,21 @@ from geopy.distance import geodesic
 
 logger = logging.getLogger(__name__)
 
-PLACES_ENDPOINT = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+PLACES_ENDPOINT = "https://places.googleapis.com/v1/places:searchText"
 REQUEST_TIMEOUT_SECONDS = 10
+# The Text Search location bias only accepts circles up to 50 km.
+MAX_RADIUS_METERS = 50_000
+MAX_RESULTS = 20
+PLACES_FIELD_MASK = ",".join(
+    [
+        "places.displayName",
+        "places.formattedAddress",
+        "places.location",
+        "places.rating",
+        "places.userRatingCount",
+        "places.businessStatus",
+    ]
+)
 
 # Words that mean "this is a request for a real-world medical service".
 DOCTOR_INTENT_KEYWORDS = (
@@ -184,13 +197,17 @@ def specialty_for(text: str) -> str:
     return "doctor"
 
 
-def _place_type_and_keyword(specialty: str) -> tuple[str, str]:
+def _included_type(specialty: str) -> str:
+    """Map a specialty to a Places API (New) ``includedType``."""
     lowered = specialty.lower()
     if "hospital" in lowered:
-        return "hospital", "hospital"
+        return "hospital"
     if "clinic" in lowered:
-        return "clinic", "clinic"
-    return "doctor", specialty
+        return "medical_clinic"
+    if "dentist" in lowered:
+        return "dentist"
+    # Cardiologist / dermatologist / general physician ... all search doctors.
+    return "doctor"
 
 
 def find_nearby_places(
@@ -205,62 +222,65 @@ def find_nearby_places(
 ) -> list[Place]:
     """Return up to ``limit`` open places near a coordinate, nearest first.
 
+    Uses the Places API (New) Text Search endpoint, which supports specialty
+    keywords ("cardiologist") that Nearby Search's fixed types cannot.
+
     Raises:
         PlacesError: if the upstream request fails.
     """
-    place_type, keyword = _place_type_and_keyword(specialty)
-    params = {
-        "location": f"{latitude},{longitude}",
-        "radius": int(radius_km * 1000),
-        "type": place_type,
-        "keyword": keyword,
-        "key": api_key,
+    radius_meters = min(max(int(radius_km * 1000), 1), MAX_RADIUS_METERS)
+    payload = {
+        "textQuery": specialty,
+        "includedType": _included_type(specialty),
+        "maxResultCount": min(max(int(limit), 1), MAX_RESULTS),
+        "rankPreference": "DISTANCE",
+        "locationBias": {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": float(radius_meters),
+            }
+        },
     }
 
     http = session or requests
     try:
-        response = http.get(PLACES_ENDPOINT, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
+        response = http.post(
+            PLACES_ENDPOINT,
+            json=payload,
+            headers={
+                # The key travels in a header, never in the URL or a log line.
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": PLACES_FIELD_MASK,
+            },
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
-        payload: dict[str, Any] = response.json()
+        data: dict[str, Any] = response.json()
     except (requests.RequestException, ValueError) as exc:
-        # Never log the URL: it contains the API key.
         logger.exception("Google Places request failed")
         raise PlacesError("Doctor search is temporarily unavailable.") from exc
 
-    status = payload.get("status")
-    if status == "ZERO_RESULTS":
-        return []
-    if status != "OK":
-        # REQUEST_DENIED (bad key / API not enabled), OVER_QUERY_LIMIT, etc.
-        # Returning [] here would tell the user "nothing nearby", which is a
-        # lie: the lookup never actually ran. Surface it as an outage instead.
-        logger.warning(
-            "Google Places returned status=%s message=%s",
-            status,
-            payload.get("error_message", "n/a"),
-        )
-        raise PlacesError(f"Google Places returned {status}")
-
+    # An empty result set is an HTTP 200 with no "places" key.
     origin = (latitude, longitude)
     places: list[Place] = []
-    for result in payload.get("results", []):
-        if result.get("business_status") == "CLOSED_PERMANENTLY":
+    for result in data.get("places") or []:
+        if result.get("businessStatus") == "CLOSED_PERMANENTLY":
             continue
 
-        location = result.get("geometry", {}).get("location", {})
+        location = result.get("location") or {}
         try:
-            dest = (float(location["lat"]), float(location["lng"]))
+            dest = (float(location["latitude"]), float(location["longitude"]))
         except (KeyError, TypeError, ValueError):
             continue
 
         places.append(
             Place(
-                name=result.get("name", "Unknown place"),
-                address=result.get("vicinity") or result.get("formatted_address") or "Address not available",
+                name=(result.get("displayName") or {}).get("text") or "Unknown place",
+                address=result.get("formattedAddress") or "Address not available",
                 distance_km=round(geodesic(origin, dest).km, 2),
                 map_url=f"https://www.google.com/maps?q={dest[0]},{dest[1]}",
                 rating=result.get("rating"),
-                user_ratings_total=result.get("user_ratings_total"),
+                user_ratings_total=result.get("userRatingCount"),
             )
         )
 

@@ -133,6 +133,33 @@ def test_doctor_results_are_returned_as_structured_data(client, monkeypatch):
     assert captured == {"lat": 12.9, "lon": 77.5, "specialty": "dermatologist", "limit": 5}
 
 
+@pytest.mark.parametrize(
+    ("message", "expected_noun"),
+    [
+        ("find me a dentist", "dentists"),
+        ("nearest hospital", "hospitals"),
+        ("a clinic please", "clinics"),
+    ],
+)
+def test_intro_uses_the_right_noun(client, monkeypatch, message, expected_noun):
+    monkeypatch.setattr(
+        places,
+        "find_nearby_places",
+        lambda *args, **kwargs: [
+            places.Place(
+                name="Somewhere",
+                address="1 Main St",
+                distance_km=1.0,
+                map_url="https://www.google.com/maps?q=1,2",
+            )
+        ],
+    )
+
+    body = client.post("/get", json={"msg": message, "location": "12.9,77.5"}).get_json()
+
+    assert expected_noun in body["intro"]
+
+
 def test_places_failure_returns_generic_message(client, monkeypatch):
     def boom(*args, **kwargs):
         raise places.PlacesError("upstream said: quota exceeded for key ABC")

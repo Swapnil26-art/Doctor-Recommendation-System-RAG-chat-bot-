@@ -13,8 +13,8 @@ They must never be committed.
 
 - `.env` is listed in `.gitignore`.
 - `.env.example` documents the required variable names with placeholder values.
-- The Google Places request key is sent as a query parameter inside `params=`,
-  so it is never written to application logs.
+- The Google Places request key is sent in the `X-Goog-Api-Key` header, never in
+  the URL or query parameters, so it cannot leak through access logs.
 - Error responses return generic messages; stack traces stay server-side.
 
 ### ⚠️ If a key has ever been committed
@@ -31,7 +31,7 @@ in git history and remains fetchable. Do all three steps:
 | `PINECONE_API_KEY` | <https://app.pinecone.io> → API Keys |
 
 For the Maps key, also restrict it: *Application restrictions → HTTP referrers
-or IP addresses*, and *API restrictions → Places API only*. An unrestricted
+or IP addresses*, and *API restrictions → Places API (New) only*. An unrestricted
 Maps key can be used by anyone who finds it, and billing is on you.
 
 **2. Purge the file from history** (on a fresh clone):

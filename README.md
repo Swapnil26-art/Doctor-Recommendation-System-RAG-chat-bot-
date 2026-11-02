@@ -35,7 +35,7 @@ message needs, so the user never has to switch modes.
 - **No local ML stack** — embeddings run inside Pinecone. No torch, no 2 GB
   download, no Python 3.13 ceiling.
 - **Configurable, testable, container-ready** — settings in one module, Flask
-  application factory, 100 tests, `Dockerfile`, `docker compose`, and CI.
+  application factory, 110 tests, `Dockerfile`, `docker compose`, and CI.
 
 ## 🏗️ Architecture
 
@@ -47,7 +47,7 @@ Browser (templates/index.html)
                         Flask (app.py)
                          ├── places.is_doctor_request(msg)
                          │      ├── yes → places.find_nearby_places()
-                         │      │          └── Google Places API + geopy
+                         │      │          └── Places API (New) Text Search + geopy
                          │      └── no  → rag.answer_question()
                          │                 ├── Pinecone search(inputs={"text": q})
                          │                 │     └── llama-text-embed-v2 (server-side)
@@ -77,7 +77,7 @@ no model download.
 | Vector DB | Pinecone serverless, **integrated index** |
 | Embeddings | `llama-text-embed-v2`, hosted by Pinecone (384 dims, cosine) |
 | Retrieval | Pinecone text search (no local model) |
-| Maps | Google Places API (Nearby Search) + `geopy` |
+| Maps | Google Places API (New) Text Search + `geopy` |
 | PDF parsing | `pypdf` |
 | Frontend | Vanilla HTML/CSS/JS |
 
@@ -92,7 +92,7 @@ config.py              Environment settings, validation
 ingest.py              One-off PDF -> Pinecone ingestion (batched, retryable)
 templates/index.html   Chat UI (all rendering escaped/validated)
 static/style.css       Styling
-tests/                 Pytest suite (100 tests, no network required)
+tests/                 Pytest suite (110 tests, no network required)
 Dockerfile             Production image (non-root, healthcheck)
 docker-compose.yml     Local container setup
 SECURITY.md            Key rotation + deployment checklist
@@ -104,7 +104,7 @@ SECURITY.md            Key rotation + deployment checklist
 
 - **Python 3.12 or newer**
 - A Google AI Studio key (Gemini)
-- A Google Maps **Places API** key (Places API enabled, billing on)
+- A Google Maps **Places API (New)** key (enabled in the project, billing on)
 - A Pinecone **integrated index** using `llama-text-embed-v2`:
 
   | Setting | Value |
@@ -231,7 +231,7 @@ details are logged, never returned.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest            # 100 tests, ~1 second
+pytest            # 110 tests, ~1 second
 ruff check .
 ```
 
@@ -246,13 +246,13 @@ are replaced with fakes at the module boundary.
 | Answers are irrelevant / score ~0.15 | The index contains vectors from a different model than `llama-text-embed-v2`. Run `python ingest.py --reset` |
 | No sources returned at all | Wrong namespace — check `PINECONE_NAMESPACE` and `index.describe_index_stats()` |
 | `Invalid API key` from Gemini | `GOOGLE_API_KEY` is a placeholder or expired |
-| `REQUEST_DENIED` from Places | Places API not enabled, billing off, or key restricted to another API |
+| `REQUEST_DENIED` from Places | Places API **(New)** not enabled, billing off, or key restricted to another API. Legacy Nearby Search keys do not work — the app calls `places.googleapis.com/v1/places:searchText` |
 | `No module named torch` | You are on the old commit; this version has no local ML stack |
 
 ## 🔐 Security
 
 - Keys come from the environment only; `.env` is ignored by git and Docker.
-- API keys never appear in logs (Places key travels in request params).
+- API keys never appear in logs or URLs (the Places key travels in the `X-Goog-Api-Key` header).
 - All chat output is escaped before rendering; map links are host-validated.
 - Error responses never echo exception text to the browser.
 - Rotate keys and purge history if anything was ever committed — see
@@ -262,7 +262,7 @@ are replaced with fakes at the module boundary.
 
 - Conversation memory so follow-up questions keep context.
 - Streaming responses.
-- Migrate to Places API (New) — the legacy Nearby Search endpoint is deprecated.
+- Cache Places results briefly to cut API cost on repeat searches.
 - LLM-based intent routing instead of keyword matching.
 - Rate limiting and per-session quotas.
 
